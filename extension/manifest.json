@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "Open Superhuman — Gmail command palette, hotkeys, split inbox & calendar",
+  "version": "0.3.5",
+  "description": "Open-source, Superhuman-style command palette (Cmd+K), keyboard shortcuts, split-inbox tabs, fast account switching, and a calendar key for Gmail.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["https://mail.google.com/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "src/options/options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "css": ["src/content/palette.css"],
+      "js": [
+        "src/shared/hashutil.js",
+        "src/shared/keymap.js",
+        "src/content/storage.js",
+        "src/content/toast.js",
+        "src/content/gmail.js",
+        "src/content/accounts.js",
+        "src/content/calendar.js",
+        "src/content/listnav.js",
+        "src/content/threadnav.js",
+        "src/content/tabs.js",
+        "src/content/commands.js",
+        "src/content/palette.js",
+        "src/content/hotkeys.js",
+        "src/content/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

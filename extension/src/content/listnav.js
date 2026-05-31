@@ -1,0 +1,169 @@
+// List cursor + multi-select for the thread list (inbox / search / label).
+//
+// Gmail ignores synthetic j/k/x/Enter keystrokes (they're untrusted), so we
+// can't reuse Gmail's own keyboard cursor. Instead we maintain our OWN cursor
+// over the visible thread rows (tr.zA) and drive selection / triage by clicking
+// the rows' real controls: the [role="checkbox"], the per-row hover buttons,
+// and the toolbar (which acts on the checked set). All clicks go through
+// gmail.realClick (full pointer+mouse gesture) so Gmail actually reacts.
+window.CMDK = window.CMDK || {};
+
+(function () {
+  const { gmail } = CMDK;
+  const CURSOR_CLASS = "cmdk-cursor";
+  let cursor = -1;
+  let anchor = -1; // shift-select range anchor; -1 means no shift session active
+
+  function rows() {
+    return Array.from(document.querySelectorAll("tr.zA")).filter((r) => gmail.isVisible(r));
+  }
+
+  // Keep the cursor valid: reuse it if still in range, else adopt Gmail's own
+  // highlighted row (.btb) if any, else the first row.
+  function ensureCursor(list) {
+    const r = list || rows();
+    if (cursor >= 0 && cursor < r.length) return cursor;
+    const btb = r.findIndex((row) => row.classList.contains("btb"));
+    cursor = r.length ? (btb >= 0 ? btb : 0) : -1;
+    return cursor;
+  }
+
+  function paint(list) {
+    const r = list || rows();
+    r.forEach((row, i) => row.classList.toggle(CURSOR_CLASS, i === cursor));
+    const el = r[cursor];
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }
+
+  function move(dir) {
+    const r = rows();
+    if (!r.length) return;
+    ensureCursor(r);
+    anchor = -1; // a plain move ends any shift-select range
+    cursor = Math.max(0, Math.min(cursor + dir, r.length - 1));
+    paint(r);
+  }
+
+  function cursorRow() {
+    const r = rows();
+    ensureCursor(r);
+    return r[cursor] || null;
+  }
+
+  function checkbox(row) {
+    return row ? row.querySelector('[role="checkbox"]') : null;
+  }
+  function isSelected(row) {
+    const cb = checkbox(row);
+    return cb ? cb.getAttribute("aria-checked") === "true" : false;
+  }
+  function setSelected(row, want) {
+    if (row && isSelected(row) !== want) gmail.realClick(checkbox(row));
+  }
+  function selectedRows() {
+    return rows().filter(isSelected);
+  }
+
+  function toggleSelect() {
+    anchor = -1; // a manual toggle starts a fresh selection session
+    const row = cursorRow();
+    if (row) setSelected(row, !isSelected(row));
+  }
+
+  // Deselect everything (Escape) so you don't have to click away.
+  function clearSelection() {
+    anchor = -1;
+    const sel = selectedRows();
+    sel.forEach((row) => setSelected(row, false));
+    return sel.length;
+  }
+
+  // Shift+Arrow: grow OR shrink a contiguous range anchored where the shift-select
+  // began. The selection is always the rows between the anchor and the cursor, so
+  // moving back toward the anchor DEselects the row you leave — Shift+Up after a
+  // run of Shift+Down unselects upward (and vice-versa) instead of only ever
+  // adding rows.
+  function extend(dir) {
+    const r = rows();
+    if (!r.length) return;
+    ensureCursor(r);
+    if (anchor < 0) {
+      anchor = cursor; // first shift press: anchor here and select it
+      setSelected(r[anchor], true);
+    }
+    const prev = cursor;
+    cursor = Math.max(0, Math.min(cursor + dir, r.length - 1));
+    const lo = Math.min(anchor, cursor);
+    const hi = Math.max(anchor, cursor);
+    for (let i = lo; i <= hi; i++) setSelected(r[i], true);
+    if (prev < lo || prev > hi) setSelected(r[prev], false); // left the range
+    paint(r);
+  }
+
+  function open() {
+    const row = cursorRow();
+    if (!row) return;
+    const target = row.querySelector('.xS, .bog, span[data-thread-id], [role="link"]') || row;
+    gmail.realClick(target);
+  }
+
+  // A visible toolbar button (acts on the checked set) by exact label.
+  function toolbarButton(label) {
+    const bars = Array.from(
+      document.querySelectorAll('[gh="tm"], [gh="mtb"], [role="toolbar"]')
+    ).filter((b) => gmail.isVisible(b));
+    for (const bar of bars) {
+      const btn = Array.from(
+        bar.querySelectorAll(`[aria-label="${label}"], [data-tooltip="${label}"]`)
+      ).filter((b) => gmail.isVisible(b))[0];
+      if (btn) return btn;
+    }
+    return null;
+  }
+
+  function rowButton(row, label) {
+    if (!row) return null;
+    return (
+      Array.from(row.querySelectorAll('[role="button"]')).find((b) => {
+        const l = b.getAttribute("aria-label") || b.getAttribute("data-tooltip") || "";
+        return new RegExp("^" + label + "$", "i").test(l);
+      }) || null
+    );
+  }
+
+  // Archive: selected rows via the toolbar; otherwise the cursor row. Prefer the
+  // row's own hover button when it's actually laid out, else select-then-toolbar
+  // (the toolbar only renders its action icons once something is checked).
+  function archive() {
+    if (selectedRows().length) {
+      const b = toolbarButton("Archive");
+      if (b) gmail.realClick(b);
+      setTimeout(() => paint(), 200);
+      return;
+    }
+    const row = cursorRow();
+    if (!row) return;
+    const rb = rowButton(row, "Archive");
+    if (rb && gmail.isVisible(rb)) {
+      gmail.realClick(rb);
+      setTimeout(() => paint(), 200);
+      return;
+    }
+    setSelected(row, true);
+    setTimeout(() => {
+      const b = toolbarButton("Archive");
+      if (b) gmail.realClick(b);
+      setTimeout(() => paint(), 200);
+    }, 70);
+  }
+
+  function reset() {
+    cursor = -1;
+    anchor = -1;
+  }
+
+  // A fresh list (navigation, account switch) should start the cursor over.
+  window.addEventListener("hashchange", reset);
+
+  CMDK.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, reset };
+})();

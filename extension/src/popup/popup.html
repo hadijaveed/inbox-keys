@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="head">
+      <img src="../../icons/icon32.png" width="22" height="22" alt="" />
+      <div>
+        <div class="title">Open Superhuman</div>
+        <div class="sub" id="account">—</div>
+      </div>
+    </div>
+
+    <button class="primary" id="open-palette">Open command palette <kbd>⌘K</kbd></button>
+
+    <label class="row"><span>Enabled</span><input type="checkbox" id="enabled" /></label>
+    <label class="row"><span>Keyboard shortcuts</span><input type="checkbox" id="hotkeysEnabled" /></label>
+    <label class="row"><span>Split-inbox tabs</span><input type="checkbox" id="tabsEnabled" /></label>
+
+    <button class="ghost" id="open-tabs">Configure tabs</button>
+    <a class="ghost link" id="open-options" href="#">Settings →</a>
+
+    <p class="note" id="note"></p>
+    <script src="popup.js"></script>
+  </body>
+</html>

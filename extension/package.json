@@ -1,0 +1,12 @@
+{
+  "name": "open-superhuman",
+  "version": "0.3.5",
+  "private": true,
+  "description": "Open Superhuman — Gmail command palette, hotkeys, split inbox & calendar (Chrome MV3 extension).",
+  "scripts": {
+    "test": "node tests/hashutil.test.js && node tests/getcontext.test.js && node tests/hotkeys.test.js && node tests/key-behavior-sim.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}

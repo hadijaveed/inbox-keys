@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Open Superhuman — Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Open Superhuman — Settings</h1>
+
+      <section>
+        <h2>General</h2>
+        <label class="row"><span>Extension enabled</span><input type="checkbox" id="enabled" /></label>
+        <label class="row"><span>Keyboard shortcuts</span><input type="checkbox" id="hotkeysEnabled" /></label>
+        <label class="row"><span>Split-inbox tab bar</span><input type="checkbox" id="tabsEnabled" /></label>
+        <label class="row"><span>Calendar key (0 / 00)</span><input type="checkbox" id="calendarEnabled" /></label>
+        <label class="field">
+          <span>Command palette hotkey</span>
+          <select id="paletteHotkey">
+            <option value="mod+k">Cmd/Ctrl + K</option>
+            <option value="mod+j">Cmd/Ctrl + J</option>
+            <option value="mod+/">Cmd/Ctrl + /</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
+        <h2>Split inbox tabs</h2>
+        <p class="muted">
+          A tab bar at the top of Gmail. Each tab is any Gmail search
+          (<code>is:unread</code>, <code>label:Clients</code>, <code>from:boss@x.com</code>…).
+          Add, rename, and remove tabs from the gear icon in the tab bar inside
+          Gmail.
+        </p>
+        <div id="tabs"></div>
+      </section>
+
+      <section>
+        <h2>Accounts</h2>
+        <p class="muted">
+          Learned automatically as you visit each account. Switch with
+          <kbd>g 0</kbd>, <kbd>g 1</kbd>, <kbd>g 2</kbd> (the number is the
+          <code>/mail/u/N</code> index). Edit the display names if you like.
+        </p>
+        <div id="accounts"></div>
+      </section>
+
+      <section>
+        <div class="sec-head">
+          <h2>Keyboard shortcuts</h2>
+          <button type="button" id="resetAll" class="btn-ghost">Reset all shortcuts</button>
+        </div>
+        <p class="muted">
+          Click any key cell to record a new binding. Press a single key, or
+          start with <kbd>g</kbd> to build a chord (e.g. <kbd>g</kbd> then
+          <kbd>i</kbd>). <kbd>Esc</kbd> cancels, <kbd>Enter</kbd> commits.
+          Single-key actions drive Gmail's own toolbar, so turn on
+          <em>Settings → See all settings → Keyboard shortcuts on</em> in Gmail.
+        </p>
+        <input type="search" id="keymapSearch" class="km-search" placeholder="Filter shortcuts…" autocomplete="off" />
+        <div id="keymap" class="keymap">Open Gmail once so the command list can load.</div>
+      </section>
+
+      <p id="saved" class="saved"></p>
+    </main>
+    <script src="../shared/keymap.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>
