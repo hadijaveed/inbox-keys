@@ -216,7 +216,7 @@ function wireList(w) {
     });
   }
 
-  press(w, "k", { target: w.document.body });
+  press(w, "ArrowUp", { target: w.document.body });
   assert.deepEqual(headerClicks, [], "moving to a message must not expand or collapse it");
   press(w, "Enter", { target: w.document.body });
 
@@ -237,7 +237,7 @@ function wireList(w) {
     });
   }
 
-  press(w, "k", { target: w.document.body });
+  press(w, "ArrowUp", { target: w.document.body });
   press(w, "Enter", { target: w.document.body });
 
   assert.deepEqual(replyAllCards, ["first"], "Enter should reply-all on the focused expanded message card");
@@ -433,30 +433,48 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(w.__clickedAction, "Reply", "r should always open a plain reply");
 }
 
-// j moves the thread's message cursor DOWN across cards, without expanding the
-// target. The cursor starts on the latest card, so we step up with k first, then
-// back down with j to prove downward movement.
+// In detail/read view, j moves to the next email/conversation.
 {
-  const threeCards = `
+  const w = load(`
     <div role="main">
-      <div role="listitem" data-card="a"><div class="gE">a</div><div class="a3s" data-message-id="m1">a</div></div>
-      <div role="listitem" data-card="b"><div class="gE">b</div><div class="a3s" data-message-id="m2">b</div></div>
-      <div role="listitem" data-card="c"><div class="gE">c</div><div class="a3s" data-message-id="m3">c</div></div>
-    </div>`;
-  const w = load(threeCards, "#inbox/" + ID);
-  const headerClicks = [];
-  for (const card of w.document.querySelectorAll('[role="listitem"]')) {
-    card.querySelector(".gE").addEventListener("click", () => {
-      headerClicks.push(card.getAttribute("data-card"));
+      <div role="listitem" data-card="only"><div class="gE">h</div><div class="a3s" data-message-id="m1">body</div></div>
+      <button aria-label="Older">Older</button>
+      <button aria-label="Newer">Newer</button>
+    </div>`, "#inbox/" + ID);
+  w.document.querySelector('[aria-label="Older"]').addEventListener("click", () => {
+    w.__navigatedThread = "older";
+  });
+  w.document.querySelector('[aria-label="Newer"]').addEventListener("click", () => {
+    w.__navigatedThread = "newer";
+  });
+
+  const event = press(w, "j", { target: w.document.body });
+
+  assert.equal(event.defaultPrevented, true, "j should be claimed in thread view");
+  assert.equal(w.__navigatedThread, "older", "j should move to the next email/conversation");
+}
+
+// In detail/read view, k and h move to the previous email/conversation.
+{
+  for (const key of ["k", "h"]) {
+    const w = load(`
+      <div role="main">
+        <div role="listitem" data-card="only"><div class="gE">h</div><div class="a3s" data-message-id="m1">body</div></div>
+        <button aria-label="Older">Older</button>
+        <button aria-label="Newer">Newer</button>
+      </div>`, "#inbox/" + ID);
+    w.document.querySelector('[aria-label="Older"]').addEventListener("click", () => {
+      w.__navigatedThread = "older";
     });
+    w.document.querySelector('[aria-label="Newer"]').addEventListener("click", () => {
+      w.__navigatedThread = "newer";
+    });
+
+    const event = press(w, key, { target: w.document.body });
+
+    assert.equal(event.defaultPrevented, true, `${key} should be claimed in thread view`);
+    assert.equal(w.__navigatedThread, "newer", `${key} should move to the previous email/conversation`);
   }
-
-  press(w, "k", { target: w.document.body }); // c -> b
-  press(w, "k", { target: w.document.body }); // b -> a
-  press(w, "j", { target: w.document.body }); // a -> b
-
-  assert.deepEqual(headerClicks, [], "j/k movement must not click message headers");
-  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("cmdk-msg-cursor"), true, "j should move the message cursor down to the next card");
 }
 
 // Arrows move the indicator between cards; at the first/last card they fall back
@@ -513,7 +531,7 @@ function wireInlineActions(w, opts = {}) {
 }
 
 // Arrow navigation includes explicit expansion opportunities between message
-// cards; j/k still skip those controls and move only between emails.
+// cards.
 {
   const mixedThread = `
     <div role="main">
@@ -533,8 +551,8 @@ function wireInlineActions(w, opts = {}) {
   press(w, "Enter", { target: w.document.body });
   assert.equal(w.__expandedOpportunity, true, "Enter should activate the focused expansion opportunity");
 
-  press(w, "j", { target: w.document.body });
-  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("cmdk-msg-cursor"), true, "j should move to the next email, skipping expansion controls");
+  press(w, "ArrowDown", { target: w.document.body });
+  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("cmdk-msg-cursor"), true, "ArrowDown should continue to the next message card after an expansion control");
 }
 
 // A single-message thread (a long newsletter): there's no other card to move to, so
@@ -562,8 +580,8 @@ function wireInlineActions(w, opts = {}) {
   );
 }
 
-// k walks the message cursor UP across cards (3-message thread): cursor starts on
-// the latest message, k steps to the middle one, then the first.
+// ArrowUp walks the message cursor UP across cards (3-message thread): cursor
+// starts on the latest message, then steps to the middle one, then the first.
 {
   const threeCards = `
     <div role="main">
@@ -573,10 +591,10 @@ function wireInlineActions(w, opts = {}) {
     </div>`;
   const w = load(threeCards, "#inbox/" + ID);
 
-  press(w, "k", { target: w.document.body }); // c -> b
-  press(w, "k", { target: w.document.body }); // b -> a
+  press(w, "ArrowUp", { target: w.document.body }); // c -> b
+  press(w, "ArrowUp", { target: w.document.body }); // b -> a
 
-  assert.equal(w.document.querySelector('[data-card="a"]').classList.contains("cmdk-msg-cursor"), true, "k should walk the message cursor up to the first card");
+  assert.equal(w.document.querySelector('[data-card="a"]').classList.contains("cmdk-msg-cursor"), true, "ArrowUp should walk the message cursor up to the first card");
 }
 
 // Cmd+K toggles the command palette; Escape closes it. (The palette getting stuck

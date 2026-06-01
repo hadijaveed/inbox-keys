@@ -233,13 +233,14 @@ window.CMDK = window.CMDK || {};
     if (isEditable(e.target) && !canOverrideEditable(e, ctx)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-    // Thread view: j/k move between message cards. Arrows move the same visible
-    // cursor through message cards plus explicit expansion controls; when there is
-    // nowhere else to move, arrows scroll the reading pane. Enter activates the
-    // focused message/control, so navigation itself never expands the thread.
+    // Thread view: j/k move between conversations. Arrows move the visible cursor
+    // through message cards plus explicit expansion controls inside the current
+    // thread; when there is nowhere else to move, arrows scroll the reading pane.
+    // Enter activates the focused message/control, so navigation itself never
+    // expands the thread.
     if (ctx === "threadView") {
-      if (e.key === "j") { consume(e); threadnav.move(1); return; }
-      if (e.key === "k") { consume(e); threadnav.move(-1); return; }
+      if (e.key === "j") { consume(e); gmail.nextThread(); return; }
+      if (e.key === "k" || e.key === "h") { consume(e); gmail.prevThread(); return; }
       if (e.key === "ArrowDown") { consume(e); if (!threadnav.moveArrow(1)) gmail.threadScrollBy(1); return; }
       if (e.key === "ArrowUp") { consume(e); if (!threadnav.moveArrow(-1)) gmail.threadScrollBy(-1); return; }
       if (e.key === "PageDown") { consume(e); gmail.threadScrollBy(1, 0.9); return; }
