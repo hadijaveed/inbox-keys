@@ -38,6 +38,24 @@ window.CMDK = window.CMDK || {};
     return r.width > 0 && r.height > 0;
   }
 
+  // Stricter "actually on screen" test for dialogs/menus. A [role=dialog] can
+  // LINGER in Gmail's DOM after it closes — the attachment projector keeps its
+  // full-window box (so the crude isVisible above is fooled) but is flagged
+  // visibility:hidden / opacity:0 / aria-hidden="true". If we trust isVisible for
+  // those, getContext() stays stuck on the closed preview and Escape (plus every
+  // other thread shortcut) is hijacked into a no-op closeAttachmentPreview — the
+  // reported "Escape stops working after opening an attachment" bug. An open
+  // projector has none of these flags, so they cleanly separate the two states.
+  // Tolerant of jsdom (sparse getComputedStyle); offsetParent is deliberately not
+  // tested because it is null even for a genuinely open, position:fixed projector.
+  function isShowing(el) {
+    if (!isVisible(el)) return false;
+    if (el.closest && el.closest('[aria-hidden="true"]')) return false;
+    const cs = typeof getComputedStyle === "function" ? getComputedStyle(el) : null;
+    if (cs && (cs.visibility === "hidden" || cs.display === "none" || cs.opacity === "0")) return false;
+    return true;
+  }
+
   // Gmail's controls (row buttons, side-rail tabs, toolbar icons) frequently
   // ignore a bare element.click(); they only react to a full pointer + mouse
   // gesture at the element's center. realClick synthesizes the whole sequence.
@@ -132,7 +150,7 @@ window.CMDK = window.CMDK || {};
   }
 
   function attachmentPreviewDialog() {
-    const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [role="presentation"]')).filter(isVisible);
+    const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [role="presentation"]')).filter(isShowing);
     return (
       dialogs.find((dialog) => {
         const label = controlLabel(dialog).toLowerCase();
@@ -381,6 +399,7 @@ window.CMDK = window.CMDK || {};
   // keyboard events (isTrusted === false) for native navigation, so a fake "u"
   // silently does nothing. Hash routing is trusted and always works.
   function back() {
+    const parent = CMDK.hashutil.parentHash(location.hash || "");
     const sels = [
       '[aria-label^="Back to"]',
       '[data-tooltip^="Back to"]',
@@ -389,11 +408,12 @@ window.CMDK = window.CMDK || {};
     for (const sel of sels) {
       const el = Array.from(document.querySelectorAll(sel)).filter(isVisible)[0];
       if (el) {
-        el.click();
+        realClick(el);
+        location.hash = parent;
         return true;
       }
     }
-    location.hash = CMDK.hashutil.parentHash(location.hash || "");
+    location.hash = parent;
     return true;
   }
 
@@ -605,9 +625,12 @@ window.CMDK = window.CMDK || {};
     const active = document.activeElement;
 
     // 2) A modal dialog / menu is open (and not the compose surface itself).
+    // isShowing (not isVisible) so a closed-but-lingering dialog — notably the
+    // attachment projector, which stays sized but visibility:hidden/aria-hidden
+    // after Escape — doesn't keep us stuck in modalOpen/attachmentPreview.
     const dialogs = Array.from(
       document.querySelectorAll('[role="dialog"], [role="menu"]')
-    ).filter(isVisible);
+    ).filter(isShowing);
     const body = composeBody();
     for (const d of dialogs) {
       if (body && d.contains(body)) continue; // compose dialog handled below

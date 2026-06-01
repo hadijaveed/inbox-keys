@@ -78,6 +78,30 @@ assert.equal(
   "attachmentPreview",
   "attachment preview dialog stays escapable from thread view"
 );
+
+// ---- The lingering-projector regression ----
+// After Escape closes Gmail's attachment projector, Gmail keeps the dialog in the
+// DOM at full size but flags it aria-hidden / visibility:hidden / opacity:0. The
+// crude width/height isVisible was fooled, so getContext stayed stuck on
+// attachmentPreview and every later Escape was hijacked into a no-op close
+// ("Escape stops working after opening an attachment"). A closed preview must
+// fall back to threadView. Each hidden flag Gmail uses is exercised here.
+const PREVIEW_CTRLS = '<button aria-label="Download">Download</button><button aria-label="Close">Close</button>';
+assert.equal(
+  ctx({ hash: "#inbox/" + ID, html: MSG + '<div role="dialog" aria-hidden="true">' + PREVIEW_CTRLS + "</div>" }),
+  "threadView",
+  "closed projector (aria-hidden) must fall back to threadView so Escape goes back"
+);
+assert.equal(
+  ctx({ hash: "#inbox/" + ID, html: MSG + '<div role="dialog" style="visibility:hidden">' + PREVIEW_CTRLS + "</div>" }),
+  "threadView",
+  "closed projector (visibility:hidden) is not the active preview"
+);
+assert.equal(
+  ctx({ hash: "#inbox/" + ID, html: MSG + '<div role="dialog" style="opacity:0">' + PREVIEW_CTRLS + "</div>" }),
+  "threadView",
+  "closed projector (opacity:0) is not the active preview"
+);
 assert.equal(ctx({ hash: "#inbox", html: COMPOSE }), "compose", "standalone compose body");
 // A reply inside a thread is NOT 'compose' (body present but inThread) — it stays
 // threadView so message-nav keeps working; Escape-exit is handled separately.

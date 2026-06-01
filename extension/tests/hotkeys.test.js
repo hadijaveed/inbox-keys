@@ -293,6 +293,22 @@ function wireList(w) {
   assert.equal(w.location.hash, "#search/is%3Aunread", "Escape should return to the parent search results");
 }
 
+// Gmail can render a visible Back button while still ignoring synthetic toolbar
+// clicks. Escape must still drive hash navigation back to the parent list.
+{
+  const w = load('<button aria-label="Back to Inbox">Back</button>' + threadFixture(), "#inbox/" + ID);
+  const back = w.document.querySelector('[aria-label="Back to Inbox"]');
+  back.addEventListener("click", () => {
+    w.__clickedGmailBack = true;
+  });
+
+  const event = press(w, "Escape", { target: w.document.body });
+
+  assert.equal(event.defaultPrevented, true, "Escape should be claimed in thread view with a visible Gmail Back button");
+  assert.equal(w.__clickedGmailBack, true, "Escape should still try Gmail's visible Back button");
+  assert.equal(w.location.hash, "#inbox", "Escape should not depend on Gmail accepting the synthetic Back click");
+}
+
 // Escape should leave an open inline reply before the thread back navigation is
 // allowed to fire.
 {
@@ -329,6 +345,35 @@ function wireList(w) {
   assert.equal(event.defaultPrevented, true, "Escape should be claimed for attachment preview");
   assert.equal(w.__closedAttachmentPreview, true, "Escape should close the attachment preview");
   assert.equal(w.location.hash, "#inbox/" + ID, "closing preview should not navigate back to the list yet");
+}
+
+// Regression: after the attachment preview is CLOSED, Gmail leaves the projector
+// dialog in the DOM at full size but aria-hidden. The old width/height-only
+// isVisible was fooled, so getContext stayed pinned to attachmentPreview and
+// every Escape was hijacked into a no-op re-close — the reported "Escape stops
+// working after opening an attachment". A closed (hidden) preview must be ignored
+// so Escape goes back to the list as usual.
+{
+  const closedPreview =
+    '<div role="dialog" aria-hidden="true"><button aria-label="Download">Download</button><button aria-label="Close">Close</button></div>';
+  const w = load('<button aria-label="Back to Inbox">Back</button>' + threadFixture() + closedPreview, "#inbox/" + ID);
+  let reClosed = false;
+  w.document.querySelector('[aria-label="Close"]').addEventListener("click", () => {
+    reClosed = true;
+  });
+  let clickedBack = false;
+  w.document.querySelector('[aria-label="Back to Inbox"]').addEventListener("click", () => {
+    clickedBack = true;
+  });
+
+  assert.equal(w.CMDK.gmail.getContext(), "threadView", "a closed (aria-hidden) preview must not keep us in attachmentPreview");
+
+  const event = press(w, "Escape", { target: w.document.body });
+
+  assert.equal(event.defaultPrevented, true, "Escape should still be claimed in thread view");
+  assert.equal(reClosed, false, "Escape must not re-trigger the already-closed preview");
+  assert.equal(clickedBack, true, "Escape should go back to the list, not the stale preview close");
+  assert.equal(w.location.hash, "#inbox", "Escape returns to the parent list after the preview is closed");
 }
 
 // Gmail menus/dialogs block global shortcuts.
