@@ -12,17 +12,28 @@
     // Compose / messaging
     { id: "compose", title: "Compose new email", group: "Compose", defaultKeys: ["c"], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "reply", title: "Reply", group: "Compose", defaultKeys: ["r"], contexts: ["threadView"], fixed: false },
-    { id: "reply-all", title: "Reply all", group: "Compose", defaultKeys: ["a"], contexts: ["threadView"], fixed: false },
+    { id: "reply-all", title: "Reply all", group: "Compose", defaultKeys: ["Enter", "a"], contexts: ["threadView"], fixed: false },
     { id: "forward", title: "Forward", group: "Compose", defaultKeys: ["f"], contexts: ["threadView"], fixed: false },
+    { id: "open-link-or-attachment", title: "Open link or attachment", group: "Compose", defaultKeys: ["Mod+O"], contexts: ["threadView"], fixed: true },
+    { id: "attach-file", title: "Attach file", group: "Compose", defaultKeys: ["Mod+U"], contexts: ["compose"], fixed: true },
 
     // Triage
     { id: "archive", title: "Archive", group: "Triage", defaultKeys: ["e"], contexts: ["inboxList", "threadView"], fixed: false },
+    { id: "mark-not-done", title: "Mark not done", group: "Triage", defaultKeys: ["Shift+E"], contexts: ["inboxList", "threadView"], fixed: true },
     { id: "delete", title: "Delete", group: "Triage", defaultKeys: ["#"], contexts: ["inboxList", "threadView"], fixed: false },
+    { id: "undo", title: "Undo", group: "Triage", defaultKeys: ["z"], contexts: DEFAULT_CONTEXTS, fixed: false },
+    { id: "mark-read-unread", title: "Mark read or unread", group: "Triage", defaultKeys: ["u"], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "mark-read", title: "Mark as read", group: "Triage", defaultKeys: [], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "mark-unread", title: "Mark as unread", group: "Triage", defaultKeys: [], contexts: ["inboxList", "threadView"], fixed: false },
-    { id: "snooze", title: "Snooze", group: "Triage", defaultKeys: ["b"], contexts: ["inboxList", "threadView"], fixed: false },
+    { id: "snooze", title: "Snooze", group: "Triage", defaultKeys: ["h", "b"], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "report-spam", title: "Report spam", group: "Triage", defaultKeys: ["!"], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "star", title: "Star / toggle star", group: "Triage", defaultKeys: ["s"], contexts: ["inboxList", "threadView"], fixed: false },
+    { id: "mute", title: "Mute", group: "Triage", defaultKeys: ["Shift+M"], contexts: ["inboxList", "threadView"], fixed: true },
+    { id: "unsubscribe", title: "Unsubscribe", group: "Triage", defaultKeys: ["Mod+U"], contexts: ["threadView"], fixed: true },
+    { id: "label", title: "Add or remove label", group: "Labels", defaultKeys: ["l"], contexts: ["inboxList", "threadView"], fixed: false },
+    { id: "remove-label", title: "Remove label", group: "Labels", defaultKeys: ["y"], contexts: ["inboxList", "threadView"], fixed: false },
+    { id: "remove-all-labels", title: "Remove all labels", group: "Labels", defaultKeys: ["Shift+Y"], contexts: ["inboxList", "threadView"], fixed: true },
+    { id: "move", title: "Move", group: "Labels", defaultKeys: ["v"], contexts: ["inboxList", "threadView"], fixed: false },
 
     // Navigation (chords mirror Gmail's "g" prefix)
     { id: "go-inbox", title: "Go to Inbox", group: "Go to", defaultKeys: ["g i"], contexts: DEFAULT_CONTEXTS, fixed: false },
@@ -39,6 +50,8 @@
     // List scrolling
     { id: "go-top", title: "Go to top of list", group: "Navigation", defaultKeys: ["g g"], contexts: ["inboxList"], fixed: false },
     { id: "go-bottom", title: "Go to bottom of list", group: "Navigation", defaultKeys: ["Shift+G"], contexts: ["inboxList"], fixed: true },
+    { id: "expand-message", title: "Expand / collapse focused message", group: "Navigation", defaultKeys: ["o"], contexts: ["threadView"], fixed: false },
+    { id: "expand-all", title: "Expand / collapse all messages", group: "Navigation", defaultKeys: ["Shift+O"], contexts: ["threadView"], fixed: true },
 
     // Split-inbox tabs (engine special-cases Tab / Shift+Tab)
     { id: "next-tab", title: "Next tab", group: "Tabs", defaultKeys: ["Tab"], contexts: ["inboxList"], fixed: true },

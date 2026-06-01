@@ -121,12 +121,58 @@ window.CMDK = window.CMDK || {};
     return null;
   }
 
+  function toolbarButtonMatching(patterns) {
+    const bars = Array.from(
+      document.querySelectorAll('[gh="tm"], [gh="mtb"], [role="toolbar"]')
+    ).filter((b) => gmail.isVisible(b));
+    for (const bar of bars) {
+      const btn = Array.from(
+        bar.querySelectorAll('[aria-label], [data-tooltip], [title], [role="button"]')
+      ).filter((b) => gmail.isVisible(b)).find((b) => {
+        const label = (
+          b.getAttribute("aria-label") ||
+          b.getAttribute("data-tooltip") ||
+          b.getAttribute("title") ||
+          b.textContent ||
+          ""
+        ).trim();
+        return patterns.some((p) => p.test(label));
+      });
+      if (btn) return btn;
+    }
+    return null;
+  }
+
+  function waitFor(find, onFound, onGiveUp, tries = 16, interval = 80) {
+    const el = find();
+    if (el) return onFound(el);
+    if (tries <= 0) return onGiveUp && onGiveUp();
+    setTimeout(() => waitFor(find, onFound, onGiveUp, tries - 1, interval), interval);
+    return true;
+  }
+
   function rowButton(row, label) {
     if (!row) return null;
     return (
       Array.from(row.querySelectorAll('[role="button"]')).find((b) => {
         const l = b.getAttribute("aria-label") || b.getAttribute("data-tooltip") || "";
         return new RegExp("^" + label + "$", "i").test(l);
+      }) || null
+    );
+  }
+
+  function rowButtonMatching(row, patterns) {
+    if (!row) return null;
+    return (
+      Array.from(row.querySelectorAll('[aria-label], [data-tooltip], [title], [role="button"]')).find((b) => {
+        const label = (
+          b.getAttribute("aria-label") ||
+          b.getAttribute("data-tooltip") ||
+          b.getAttribute("title") ||
+          b.textContent ||
+          ""
+        ).trim();
+        return patterns.some((p) => p.test(label));
       }) || null
     );
   }
@@ -157,6 +203,104 @@ window.CMDK = window.CMDK || {};
     }, 70);
   }
 
+  function trash() {
+    if (selectedRows().length) {
+      const b = toolbarButton("Delete") || toolbarButton("Trash");
+      if (b) gmail.realClick(b);
+      setTimeout(() => paint(), 200);
+      return;
+    }
+    const row = cursorRow();
+    if (!row) return;
+    const rb = rowButtonMatching(row, [/^Delete$/i, /^Trash$/i]);
+    if (rb && gmail.isVisible(rb)) {
+      gmail.realClick(rb);
+      setTimeout(() => paint(), 200);
+      return;
+    }
+    setSelected(row, true);
+    setTimeout(() => {
+      const b = toolbarButton("Delete") || toolbarButton("Trash");
+      if (b) gmail.realClick(b);
+      setTimeout(() => paint(), 200);
+    }, 70);
+  }
+
+  function toggleStar() {
+    const row = cursorRow();
+    const star = rowButtonMatching(row, [
+      /^Star$/i,
+      /^Not starred$/i,
+      /^Add star$/i,
+      /^Remove star$/i,
+      /^Starred$/i,
+    ]);
+    if (star && gmail.isVisible(star)) gmail.realClick(star);
+  }
+
+  const READ_PATTERNS = [/^Mark as read$/i, /^Mark as unread$/i, /^Mark read$/i, /^Mark unread$/i];
+
+  function markReadUnread() {
+    if (selectedRows().length) {
+      const b = toolbarButtonMatching(READ_PATTERNS);
+      if (b) gmail.realClick(b);
+      setTimeout(() => paint(), 200);
+      return true;
+    }
+    const row = cursorRow();
+    if (!row) return false;
+    const rb = rowButtonMatching(row, READ_PATTERNS);
+    if (rb && gmail.isVisible(rb)) {
+      gmail.realClick(rb);
+      setTimeout(() => paint(), 200);
+      return true;
+    }
+    setSelected(row, true);
+    return waitFor(
+      () => toolbarButtonMatching(READ_PATTERNS),
+      (b) => {
+        gmail.realClick(b);
+        setTimeout(() => {
+          setSelected(row, false);
+          paint();
+        }, 120);
+      },
+      () => setSelected(row, false)
+    );
+  }
+
+  function withSelection(action) {
+    if (selectedRows().length) {
+      action();
+      return true;
+    }
+    const row = cursorRow();
+    if (!row) return false;
+    setSelected(row, true);
+    setTimeout(action, 70);
+    return true;
+  }
+
+  function withTemporarySelection(action) {
+    if (selectedRows().length) {
+      action();
+      return true;
+    }
+    const row = cursorRow();
+    if (!row) return false;
+    setSelected(row, true);
+    const ran = action();
+    if (ran) {
+      setSelected(row, false);
+      return true;
+    }
+    setTimeout(() => {
+      action();
+      setTimeout(() => setSelected(row, false), 120);
+    }, 70);
+    return true;
+  }
+
   function reset() {
     cursor = -1;
     anchor = -1;
@@ -165,5 +309,5 @@ window.CMDK = window.CMDK || {};
   // A fresh list (navigation, account switch) should start the cursor over.
   window.addEventListener("hashchange", reset);
 
-  CMDK.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, reset };
+  CMDK.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, withSelection, withTemporarySelection, reset };
 })();

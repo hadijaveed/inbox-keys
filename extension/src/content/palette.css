@@ -235,6 +235,7 @@
 }
 .cmdk-cfg-list { padding: 12px 18px 4px; display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; }
 .cmdk-cfg-row { display: flex; align-items: center; gap: 8px; }
+.cmdk-cfg-row--pulse input { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.16); }
 .cmdk-cfg-name { flex: 0 0 32%; }
 .cmdk-cfg-query { flex: 1; }
 .cmdk-cfg-row input {
@@ -248,19 +249,38 @@
 }
 .cmdk-cfg-del:hover:not(:disabled) { background: #fee2e2; color: #b91c1c; }
 .cmdk-cfg-del:disabled { opacity: 0.35; cursor: default; }
+.cmdk-cfg-actions {
+  display: flex; align-items: center; gap: 8px; padding: 8px 18px;
+}
 .cmdk-cfg-add {
-  margin: 8px 18px; align-self: flex-start; border: 1px dashed #cbd5e1;
+  border: 1px dashed #cbd5e1;
   background: transparent; color: #4f46e5; font-size: 13px; font-weight: 600;
   border-radius: 8px; padding: 7px 12px; cursor: pointer;
 }
 .cmdk-cfg-add:hover { background: #eef2ff; }
+.cmdk-cfg-reset {
+  border: 0; background: transparent; color: #94a3b8; font-size: 12px; font-weight: 600;
+  border-radius: 8px; padding: 7px 10px; cursor: pointer;
+}
+.cmdk-cfg-reset:hover { background: #f1f5f9; color: #475569; }
 .cmdk-cfg-suggest-label { padding: 4px 18px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; }
-.cmdk-cfg-suggest { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 18px 14px; }
+.cmdk-cfg-suggest { display: grid; gap: 10px; padding: 8px 18px 14px; }
+.cmdk-cfg-suggest-title {
+  font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 6px;
+}
+.cmdk-cfg-suggest-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cmdk-cfg-chip {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px;
   border: 1px solid #e2e8f0; background: #f8fafc; color: #475569;
-  font-size: 12px; border-radius: 999px; padding: 5px 11px; cursor: pointer;
+  font-size: 12px; border-radius: 10px; padding: 7px 10px; cursor: pointer;
 }
 .cmdk-cfg-chip:hover { border-color: #c7d2fe; background: #eef2ff; color: #4f46e5; }
+.cmdk-cfg-chip-main { font-weight: 700; line-height: 1.1; }
+.cmdk-cfg-chip-note { color: #94a3b8; font-size: 11px; line-height: 1.15; }
+.cmdk-cfg-chip--added {
+  cursor: default; opacity: 0.58; background: #f1f5f9; color: #64748b;
+}
+.cmdk-cfg-chip--added:hover { border-color: #e2e8f0; background: #f1f5f9; color: #64748b; }
 .cmdk-cfg-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 12px 18px; border-top: 1px solid #eef2f7;
@@ -278,9 +298,14 @@
   .cmdk-cfg-sub { color: #94a3b8; }
   .cmdk-cfg-sub code, .cmdk-cfg-hint code, .cmdk-cfg-x { background: #0f172a; color: #cbd5e1; }
   .cmdk-cfg-row input { background: #0f172a; color: #e2e8f0; border-color: #334155; }
+  .cmdk-cfg-row--pulse input { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18); }
   .cmdk-cfg-row input:disabled { background: #1e293b; color: #64748b; }
+  .cmdk-cfg-reset:hover { background: #0f172a; color: #cbd5e1; }
+  .cmdk-cfg-suggest-title { color: #94a3b8; }
   .cmdk-cfg-chip { background: #0f172a; border-color: #334155; color: #cbd5e1; }
   .cmdk-cfg-chip:hover { background: #312e81; color: #c7d2fe; }
+  .cmdk-cfg-chip-note { color: #64748b; }
+  .cmdk-cfg-chip--added, .cmdk-cfg-chip--added:hover { background: #111827; border-color: #1f2937; color: #64748b; }
   .cmdk-btn--ghost { color: #94a3b8; }
   .cmdk-btn--ghost:hover { background: #0f172a; }
 }

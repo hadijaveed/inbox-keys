@@ -73,6 +73,11 @@ assert.equal(
 // ---- Higher-priority contexts still pre-empt correctly ----
 assert.equal(ctx({ hash: "#inbox", html: LIST, paletteOpen: true }), "paletteOpen", "palette wins over everything");
 assert.equal(ctx({ hash: "#inbox", html: '<div role="dialog">x</div>' + LIST }), "modalOpen", "dialog wins over list");
+assert.equal(
+  ctx({ hash: "#inbox/" + ID, html: MSG + '<div role="dialog"><button aria-label="Download">Download</button><button aria-label="Close">Close</button></div>' }),
+  "attachmentPreview",
+  "attachment preview dialog stays escapable from thread view"
+);
 assert.equal(ctx({ hash: "#inbox", html: COMPOSE }), "compose", "standalone compose body");
 // A reply inside a thread is NOT 'compose' (body present but inThread) — it stays
 // threadView so message-nav keeps working; Escape-exit is handled separately.

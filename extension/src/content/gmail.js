@@ -105,6 +105,58 @@ window.CMDK = window.CMDK || {};
     );
   }
 
+  function visibleControls(scope = document) {
+    return Array.from(
+      scope.querySelectorAll('a, button, [role="button"], [role="menuitem"], [role="link"], [aria-label], [data-tooltip], [title], .T-I, .ams')
+    ).filter(isVisible);
+  }
+
+  function controlLabel(el) {
+    return (
+      el.getAttribute("aria-label") ||
+      el.getAttribute("data-tooltip") ||
+      el.getAttribute("title") ||
+      el.getAttribute("download") ||
+      el.textContent ||
+      ""
+    ).trim().replace(/\s+/g, " ");
+  }
+
+  function findControl(patterns, scope = document) {
+    return (
+      visibleControls(scope).find((el) => {
+        const label = controlLabel(el);
+        return patterns.some((p) => p.test(label));
+      }) || null
+    );
+  }
+
+  function attachmentPreviewDialog() {
+    const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [role="presentation"]')).filter(isVisible);
+    return (
+      dialogs.find((dialog) => {
+        const label = controlLabel(dialog).toLowerCase();
+        if (/\b(pdf|attachment|preview|open with|download|print|add to drive)\b/.test(label)) return true;
+        return !!findControl([/^Open with/i, /^Download$/i, /^Print$/i, /^Add to Drive$/i], dialog);
+      }) || null
+    );
+  }
+
+  function hasAttachmentPreview() {
+    return !!attachmentPreviewDialog();
+  }
+
+  function closeAttachmentPreview() {
+    const dialog = attachmentPreviewDialog();
+    if (!dialog) return false;
+    const close =
+      findControl([/^Close$/i, /^Back$/i, /^Done$/i], dialog) ||
+      findControl([/^Close$/i, /^Back$/i, /^Done$/i]);
+    if (close && realClick(close)) return true;
+    history.back();
+    return true;
+  }
+
   function compose() {
     const btn = document.querySelector('[gh="cm"], [role="button"][gh="cm"]');
     if (btn && isVisible(btn)) {
@@ -168,6 +220,99 @@ window.CMDK = window.CMDK || {};
       return true;
     }
     return false;
+  }
+
+  function undo() {
+    const btn = findControl([/^Undo$/i]);
+    if (btn) return realClick(btn);
+    if (CMDK.toast) CMDK.toast("Nothing to undo", { kind: "info" });
+    return false;
+  }
+
+  function toggleStar(scope = document) {
+    return realClick(findControl([
+      /^Star$/i,
+      /^Not starred$/i,
+      /^Add star$/i,
+      /^Remove star$/i,
+      /^Starred$/i,
+    ], scope));
+  }
+
+  function attachFile() {
+    const input = Array.from(document.querySelectorAll('input[type="file"]')).filter(isVisible)[0];
+    if (input) return realClick(input);
+    return realClick(findControl([/^Attach files?$/i, /^Attach$/i, /\bAttach files?\b/i]));
+  }
+
+  function markReadUnread() {
+    return realClick(findControl([/^Mark as read$/i, /^Mark as unread$/i, /^Mark read$/i, /^Mark unread$/i]));
+  }
+
+  function snooze() {
+    return realClick(findControl([/^Snooze$/i, /^Remind me$/i]));
+  }
+
+  function markNotDone() {
+    return realClick(findControl([/^Move to inbox$/i, /^Mark not done$/i, /^Not done$/i]));
+  }
+
+  function mute() {
+    return realClick(findControl([/^Mute$/i]));
+  }
+
+  function unsubscribe() {
+    const btn = findControl([/^Unsubscribe\b/i, /\bUnsubscribe\b/i]);
+    if (!btn) {
+      if (CMDK.toast) CMDK.toast("No unsubscribe action found", { kind: "warn" });
+      return false;
+    }
+    realClick(btn);
+    waitFor(
+      () => {
+        const dialog = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).filter(isVisible)[0];
+        return dialog ? findControl([/^Unsubscribe$/i, /^OK$/i, /^Confirm$/i], dialog) : null;
+      },
+      (confirm) => realClick(confirm),
+      null,
+      8,
+      80
+    );
+    return true;
+  }
+
+  function openLinkOrAttachment(scope = document) {
+    const root = scope || document;
+    const candidates = Array.from(
+      root.querySelectorAll(
+        'a[href], [role="link"], [download], [aria-label], [data-tooltip], [title], [role="button"]'
+      )
+    ).filter(isVisible);
+    const target = candidates.find((el) => {
+      const href = el.getAttribute("href") || "";
+      if (href && !/^mailto:/i.test(href) && href !== "#") return true;
+      const label = controlLabel(el);
+      return /\b(attachment|download|open|preview)\b/i.test(label);
+    });
+    if (target) return realClick(target);
+    if (CMDK.toast) CMDK.toast("No link or attachment found", { kind: "warn" });
+    return false;
+  }
+
+  function openLabelMenu() {
+    return realClick(findControl([/^Label$/i, /^Labels$/i, /^Label as$/i]));
+  }
+
+  function removeLabel() {
+    return realClick(findControl([/^Remove label$/i, /^Remove$/i]));
+  }
+
+  function removeAllLabels() {
+    return realClick(findControl([/^Remove all labels$/i]));
+  }
+
+  function openMoveMenu() {
+    return realClick(findControl([/^Move$/i, /^Move to$/i]));
   }
 
   // Read the signed-in account email from the top-right account button.
@@ -466,6 +611,7 @@ window.CMDK = window.CMDK || {};
     const body = composeBody();
     for (const d of dialogs) {
       if (body && d.contains(body)) continue; // compose dialog handled below
+      if (inThread() && attachmentPreviewDialog() === d) return "attachmentPreview";
       return "modalOpen";
     }
 
@@ -513,11 +659,26 @@ window.CMDK = window.CMDK || {};
     sendKey,
     isDispatchingSynthetic,
     action,
+    undo,
+    toggleStar,
+    attachFile,
+    markReadUnread,
+    snooze,
+    markNotDone,
+    mute,
+    unsubscribe,
+    openLinkOrAttachment,
+    openLabelMenu,
+    removeLabel,
+    removeAllLabels,
+    openMoveMenu,
     currentEmail,
     composeBody,
     composeRecipients,
     composeSubject,
     hasOpenThreadReply,
+    hasAttachmentPreview,
+    closeAttachmentPreview,
     isVisible,
     back,
     replyToThread,

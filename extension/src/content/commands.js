@@ -37,23 +37,48 @@ window.CMDK = window.CMDK || {};
     };
   }
 
+  function listSelectionAction(action) {
+    if (gmail.getContext() === "inboxList" && CMDK.listnav && CMDK.listnav.withSelection) {
+      return CMDK.listnav.withSelection(action);
+    }
+    return action();
+  }
+
+  function listTemporarySelectionAction(action) {
+    if (gmail.getContext() === "inboxList" && CMDK.listnav && CMDK.listnav.withTemporarySelection) {
+      return CMDK.listnav.withTemporarySelection(action);
+    }
+    return action();
+  }
+
   // Rebuilt each time the palette opens so key overrides stay current.
   function buildBase() {
     return [
       // Compose / messaging
       cmd("compose", () => gmail.compose()),
       cmd("reply", () => gmail.replyToThread()),
-      cmd("reply-all", () => gmail.replyAllToThread()),
+      cmd("reply-all", () => gmail.replyAllToThread(CMDK.threadnav.currentCard() || document)),
       cmd("forward", () => gmail.forwardThread()),
+      cmd("open-link-or-attachment", () => gmail.openLinkOrAttachment(CMDK.threadnav.currentCard() || document)),
+      cmd("attach-file", () => gmail.attachFile()),
 
       // Triage (archive is context-aware: open thread vs. selected/cursor rows)
       cmd("archive", () => (gmail.getContext() === "threadView" ? gmail.archiveThread() : CMDK.listnav.archive())),
-      cmd("delete", () => gmail.action(["Delete"], "#")),
+      cmd("mark-not-done", () => listSelectionAction(() => gmail.markNotDone())),
+      cmd("delete", () => (gmail.getContext() === "threadView" ? gmail.action(["Delete"], "#") : CMDK.listnav.trash())),
+      cmd("undo", () => gmail.undo()),
+      cmd("mark-read-unread", () => (gmail.getContext() === "inboxList" ? CMDK.listnav.markReadUnread() : gmail.markReadUnread())),
       cmd("mark-read", () => gmail.action(["Mark as read"])),
       cmd("mark-unread", () => gmail.action(["Mark as unread"])),
-      cmd("snooze", () => gmail.action(["Snooze"], "b")),
+      cmd("snooze", () => listSelectionAction(() => gmail.snooze())),
       cmd("report-spam", () => gmail.action(["Report spam"], "!")),
-      cmd("star", () => gmail.action(["Add star", "Remove star"], "s")),
+      cmd("star", () => (gmail.getContext() === "threadView" ? gmail.toggleStar(CMDK.threadnav.currentCard() || document) : CMDK.listnav.toggleStar())),
+      cmd("mute", () => listSelectionAction(() => gmail.mute())),
+      cmd("unsubscribe", () => gmail.unsubscribe()),
+      cmd("label", () => listSelectionAction(() => gmail.openLabelMenu())),
+      cmd("remove-label", () => listSelectionAction(() => gmail.removeLabel())),
+      cmd("remove-all-labels", () => listSelectionAction(() => gmail.removeAllLabels())),
+      cmd("move", () => listSelectionAction(() => gmail.openMoveMenu())),
 
       // Navigation (chords mirror Gmail's "g" prefix)
       cmd("go-inbox", nav("inbox")),
@@ -70,12 +95,13 @@ window.CMDK = window.CMDK || {};
       // List scrolling + thread/tab navigation (engine helpers)
       cmd("go-top", () => gmail.listScrollTop()),
       cmd("go-bottom", () => gmail.listScrollBottom()),
+      cmd("expand-message", () => CMDK.threadnav.toggleFocused()),
+      cmd("expand-all", () => CMDK.threadnav.expandAllToggle()),
       cmd("next-tab", () => tabs.next()),
       cmd("prev-tab", () => tabs.prev()),
       cmd("back-to-list", () => gmail.back()),
       { id: "next-thread", title: "Next conversation", group: "Navigation", hint: "← / →", keys: [], contexts: ["threadView"], run: () => gmail.nextThread() },
       { id: "prev-thread", title: "Previous conversation", group: "Navigation", hint: "← / →", keys: [], contexts: ["threadView"], run: () => gmail.prevThread() },
-      { id: "expand-all", title: "Expand / collapse all messages", group: "Navigation", hint: ";", keys: [], contexts: ["threadView"], run: () => CMDK.threadnav.expandAllToggle() },
 
       // Calendar (the 0 / 0 0 keys are special-cased in hotkeys.js; these rows
       // surface them in the palette with a hint).

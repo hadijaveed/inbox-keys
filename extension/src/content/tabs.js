@@ -23,17 +23,32 @@ window.CMDK = window.CMDK || {};
     "</svg>";
 
   // Built-in suggestions offered in the config modal.
-  const SUGGESTIONS = [
-    { name: "Unread", query: "is:unread" },
-    { name: "Starred", query: "is:starred" },
-    { name: "Important", query: "is:important" },
-    { name: "To me", query: "to:me" },
-    { name: "Attachments", query: "has:attachment" },
-    { name: "Today", query: "newer_than:1d" },
-    { name: "Updates", query: "category:updates" },
-    { name: "Social", query: "category:social" },
-    { name: "Promotions", query: "category:promotions" },
-    { name: "Awaiting reply", query: "from:me -in:chats older_than:2d" },
+  const SUGGESTION_GROUPS = [
+    {
+      title: "Daily triage",
+      items: [
+        { name: "Unread", query: "is:unread", note: "New things to clear first" },
+        { name: "Important", query: "is:important", note: "Gmail priority signals" },
+        { name: "Today", query: "newer_than:1d", note: "Fresh mail only" },
+        { name: "To me", query: "to:me", note: "Directly addressed" },
+      ],
+    },
+    {
+      title: "Follow-up",
+      items: [
+        { name: "Starred", query: "is:starred", note: "Hand-picked follow-ups" },
+        { name: "Sent follow-up", query: "from:me -in:chats older_than:2d", note: "Sent mail to revisit" },
+        { name: "Attachments", query: "has:attachment", note: "Files and docs" },
+      ],
+    },
+    {
+      title: "Gmail categories",
+      items: [
+        { name: "Updates", query: "category:updates", note: "Notifications and tools" },
+        { name: "Social", query: "category:social", note: "Social networks" },
+        { name: "Promotions", query: "category:promotions", note: "Marketing mail" },
+      ],
+    },
   ];
 
   function tabs() {
@@ -160,16 +175,19 @@ window.CMDK = window.CMDK || {};
         <div class="cmdk-cfg-head">
           <div>
             <div class="cmdk-cfg-title">Split inbox tabs</div>
-            <div class="cmdk-cfg-sub">Each tab is a Gmail search. Use any operator: <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>…</div>
+            <div class="cmdk-cfg-sub">Build a focused Gmail workspace. Keep 4-6 tabs for daily triage, then use search operators like <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>.</div>
           </div>
           <button class="cmdk-cfg-x" aria-label="Close">esc</button>
         </div>
         <div class="cmdk-cfg-list"></div>
-        <button class="cmdk-cfg-add">+ Add tab</button>
-        <div class="cmdk-cfg-suggest-label">Suggestions</div>
+        <div class="cmdk-cfg-actions">
+          <button class="cmdk-cfg-add">+ Add tab</button>
+          <button class="cmdk-cfg-reset">Reset defaults</button>
+        </div>
+        <div class="cmdk-cfg-suggest-label">Presets</div>
         <div class="cmdk-cfg-suggest"></div>
         <div class="cmdk-cfg-foot">
-          <span class="cmdk-cfg-hint">Tip: drop a label name as <code>label:Clients</code></span>
+          <span class="cmdk-cfg-hint">Good defaults: Inbox, Unread, Important, Starred, Attachments.</span>
           <span>
             <button class="cmdk-btn cmdk-btn--ghost cmdk-cfg-cancel">Cancel</button>
             <button class="cmdk-btn cmdk-cfg-save">Save</button>
@@ -203,25 +221,74 @@ window.CMDK = window.CMDK || {};
     function renderRows() {
       list.innerHTML = "";
       working.forEach((tab, i) => list.appendChild(rowFor(tab, i)));
+      renderSuggestions();
     }
 
     function addTab(name, query) {
+      const existing = working.findIndex((tab) => tab.type === "search" && norm(tab.query) === norm(query));
+      if (existing >= 0) {
+        focusRow(existing);
+        CMDK.toast("Tab already added");
+        return;
+      }
       working.push({ id: "t" + Date.now() + Math.floor(Math.random() * 1000), name: name || "New tab", type: "search", query: query || "" });
       renderRows();
     }
 
-    SUGGESTIONS.forEach((s) => {
-      const chip = document.createElement("button");
-      chip.className = "cmdk-cfg-chip";
-      chip.textContent = s.name;
-      chip.title = s.query;
-      chip.addEventListener("click", () => addTab(s.name, s.query));
-      suggestWrap.appendChild(chip);
-    });
+    function renderSuggestions() {
+      suggestWrap.innerHTML = "";
+      SUGGESTION_GROUPS.forEach((group) => {
+        const box = document.createElement("div");
+        box.className = "cmdk-cfg-suggest-group";
+        const title = document.createElement("div");
+        title.className = "cmdk-cfg-suggest-title";
+        title.textContent = group.title;
+        box.appendChild(title);
+        const chips = document.createElement("div");
+        chips.className = "cmdk-cfg-suggest-chips";
+        group.items.forEach((s) => {
+          const chip = document.createElement("button");
+          const exists = working.some((tab) => tab.type === "search" && norm(tab.query) === norm(s.query));
+          chip.className = "cmdk-cfg-chip" + (exists ? " cmdk-cfg-chip--added" : "");
+          chip.title = s.query;
+          chip.disabled = exists;
+          const main = document.createElement("span");
+          main.className = "cmdk-cfg-chip-main";
+          main.textContent = s.name;
+          const note = document.createElement("span");
+          note.className = "cmdk-cfg-chip-note";
+          note.textContent = exists ? "Added" : s.note;
+          chip.appendChild(main);
+          chip.appendChild(note);
+          chip.addEventListener("click", () => addTab(s.name, s.query));
+          chips.appendChild(chip);
+        });
+        box.appendChild(chips);
+        suggestWrap.appendChild(box);
+      });
+    }
+
+    function focusRow(i) {
+      const rows = Array.from(list.querySelectorAll(".cmdk-cfg-row"));
+      const row = rows[i];
+      if (!row) return;
+      row.classList.add("cmdk-cfg-row--pulse");
+      const input = row.querySelector(".cmdk-cfg-name");
+      if (input) input.focus();
+      setTimeout(() => row.classList.remove("cmdk-cfg-row--pulse"), 700);
+    }
+
+    function norm(value) {
+      return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+    }
 
     renderRows();
 
     cfg.querySelector(".cmdk-cfg-add").addEventListener("click", () => addTab("", ""));
+    cfg.querySelector(".cmdk-cfg-reset").addEventListener("click", () => {
+      working.splice(0, working.length, ...CMDK.DEFAULTS.tabs.map((t) => ({ ...t })));
+      renderRows();
+    });
     cfg.querySelector(".cmdk-cfg-cancel").addEventListener("click", closeConfig);
     cfg.querySelector(".cmdk-cfg-x").addEventListener("click", closeConfig);
     cfg.querySelector(".cmdk-cfg-save").addEventListener("click", async () => {

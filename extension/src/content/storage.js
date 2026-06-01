@@ -15,7 +15,9 @@ window.CMDK = window.CMDK || {};
     tabs: [
       { id: "inbox", name: "Inbox", type: "inbox", query: "" },
       { id: "unread", name: "Unread", type: "search", query: "is:unread" },
+      { id: "important", name: "Important", type: "search", query: "is:important" },
       { id: "starred", name: "Starred", type: "search", query: "is:starred" },
+      { id: "attachments", name: "Attachments", type: "search", query: "has:attachment" },
     ],
   };
 

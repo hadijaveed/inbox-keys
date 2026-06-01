@@ -206,7 +206,40 @@ function wireList(w) {
 }
 
 // Thread navigation only moves the cursor; Enter on a collapsed focused message
-// opens that message.
+// opens that message, then a second Enter replies once it is expanded.
+{
+  const w = load(collapsedThreadFixture(), "#inbox/" + ID);
+  const headerClicks = [];
+  const replyAllCards = [];
+  for (const card of w.document.querySelectorAll('[role="listitem"]')) {
+    card.querySelector(".gE").addEventListener("click", () => {
+      headerClicks.push(card.getAttribute("data-card"));
+      if (!card.querySelector(".a3s")) {
+        const body = w.document.createElement("div");
+        body.className = "a3s";
+        body.setAttribute("data-message-id", "expanded-" + card.getAttribute("data-card"));
+        body.textContent = "expanded";
+        card.appendChild(body);
+      }
+    });
+    card.querySelector(".ams").addEventListener("click", () => {
+      replyAllCards.push(card.getAttribute("data-card"));
+    });
+  }
+
+  press(w, "ArrowUp", { target: w.document.body });
+  assert.deepEqual(headerClicks, [], "moving to a message must not expand or collapse it");
+  press(w, "Enter", { target: w.document.body });
+
+  assert.deepEqual(headerClicks, ["first"], "first Enter should expand/collapse the focused message card");
+  assert.deepEqual(replyAllCards, [], "first Enter should not reply from a collapsed focused message");
+
+  press(w, "Enter", { target: w.document.body });
+
+  assert.deepEqual(replyAllCards, ["first"], "second Enter should reply-all from the now-expanded focused message card");
+}
+
+// o remains an explicit expand/collapse shortcut for the focused message.
 {
   const w = load(collapsedThreadFixture(), "#inbox/" + ID);
   const headerClicks = [];
@@ -217,10 +250,9 @@ function wireList(w) {
   }
 
   press(w, "ArrowUp", { target: w.document.body });
-  assert.deepEqual(headerClicks, [], "moving to a message must not expand or collapse it");
-  press(w, "Enter", { target: w.document.body });
+  press(w, "o", { target: w.document.body });
 
-  assert.deepEqual(headerClicks, ["first"], "Enter should expand/collapse the focused message card");
+  assert.deepEqual(headerClicks, ["first"], "o should expand/collapse the focused message card");
 }
 
 // Enter on an expanded focused message starts Reply All on that particular card.
@@ -277,6 +309,26 @@ function wireList(w) {
   assert.equal(event.defaultPrevented, true, "Escape in reply mode should be claimed");
   assert.equal(w.__discardedReply, true, "Escape should discard/exit the reply first");
   assert.equal(w.location.hash, "#inbox/" + ID, "Escape in reply mode should not navigate back yet");
+}
+
+// Escape from Gmail's attachment preview closes the preview dialog first instead
+// of getting blocked as a generic modal.
+{
+  const w = load(
+    threadFixture() +
+      '<div role="dialog"><button aria-label="Download">Download</button><button aria-label="Close">Close</button></div>',
+    "#inbox/" + ID
+  );
+  const close = w.document.querySelector('[aria-label="Close"]');
+  close.addEventListener("click", () => {
+    w.__closedAttachmentPreview = true;
+  });
+
+  const event = press(w, "Escape", { target: w.document.body });
+
+  assert.equal(event.defaultPrevented, true, "Escape should be claimed for attachment preview");
+  assert.equal(w.__closedAttachmentPreview, true, "Escape should close the attachment preview");
+  assert.equal(w.location.hash, "#inbox/" + ID, "closing preview should not navigate back to the list yet");
 }
 
 // Gmail menus/dialogs block global shortcuts.
@@ -454,27 +506,25 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(w.__navigatedThread, "older", "j should move to the next email/conversation");
 }
 
-// In detail/read view, k and h move to the previous email/conversation.
+// In detail/read view, k moves to the previous email/conversation.
 {
-  for (const key of ["k", "h"]) {
-    const w = load(`
-      <div role="main">
-        <div role="listitem" data-card="only"><div class="gE">h</div><div class="a3s" data-message-id="m1">body</div></div>
-        <button aria-label="Older">Older</button>
-        <button aria-label="Newer">Newer</button>
-      </div>`, "#inbox/" + ID);
-    w.document.querySelector('[aria-label="Older"]').addEventListener("click", () => {
-      w.__navigatedThread = "older";
-    });
-    w.document.querySelector('[aria-label="Newer"]').addEventListener("click", () => {
-      w.__navigatedThread = "newer";
-    });
+  const w = load(`
+    <div role="main">
+      <div role="listitem" data-card="only"><div class="gE">h</div><div class="a3s" data-message-id="m1">body</div></div>
+      <button aria-label="Older">Older</button>
+      <button aria-label="Newer">Newer</button>
+    </div>`, "#inbox/" + ID);
+  w.document.querySelector('[aria-label="Older"]').addEventListener("click", () => {
+    w.__navigatedThread = "older";
+  });
+  w.document.querySelector('[aria-label="Newer"]').addEventListener("click", () => {
+    w.__navigatedThread = "newer";
+  });
 
-    const event = press(w, key, { target: w.document.body });
+  const event = press(w, "k", { target: w.document.body });
 
-    assert.equal(event.defaultPrevented, true, `${key} should be claimed in thread view`);
-    assert.equal(w.__navigatedThread, "newer", `${key} should move to the previous email/conversation`);
-  }
+  assert.equal(event.defaultPrevented, true, "k should be claimed in thread view");
+  assert.equal(w.__navigatedThread, "newer", "k should move to the previous email/conversation");
 }
 
 // Arrows move the indicator between cards; at the first/last card they fall back
@@ -548,8 +598,8 @@ function wireInlineActions(w, opts = {}) {
   press(w, "ArrowUp", { target: w.document.body });
   assert.equal(expander.classList.contains("cmdk-msg-cursor"), true, "ArrowUp should stop on an expansion opportunity");
 
-  press(w, "Enter", { target: w.document.body });
-  assert.equal(w.__expandedOpportunity, true, "Enter should activate the focused expansion opportunity");
+  press(w, "o", { target: w.document.body });
+  assert.equal(w.__expandedOpportunity, true, "o should activate the focused expansion opportunity");
 
   press(w, "ArrowDown", { target: w.document.body });
   assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("cmdk-msg-cursor"), true, "ArrowDown should continue to the next message card after an expansion control");
@@ -609,6 +659,228 @@ function wireInlineActions(w, opts = {}) {
   const close = press(w, "Escape", { target: w.document.body });
   assert.equal(close.defaultPrevented, true, "Escape should be claimed while the palette is open");
   assert.equal(w.CMDK.palette.isOpen(), false, "Escape closes the palette");
+}
+
+// # trashes the focused list row, including the shifted punctuation form most
+// keyboards produce.
+{
+  const w = load(`
+    <div role="main"><div gh="tl"><table><tbody>
+      <tr class="zA" data-row="one">
+        <td><div role="checkbox" aria-checked="false"></div></td>
+        <td><span class="bog">one</span></td>
+        <td><div role="button" aria-label="Delete">Delete</div></td>
+      </tr>
+    </tbody></table></div></div>`, "#inbox");
+  w.document.querySelector('[aria-label="Delete"]').addEventListener("click", () => {
+    w.__deletedRow = "one";
+  });
+
+  const event = press(w, "#", { target: w.document.body, shiftKey: true });
+
+  assert.equal(event.defaultPrevented, true, "# should be claimed in the list");
+  assert.equal(w.__deletedRow, "one", "# should delete/trash the cursor row");
+}
+
+// s toggles the visible star control.
+{
+  const w = load(`
+    <div role="main"><div gh="tl"><table><tbody>
+      <tr class="zA" data-row="one">
+        <td><div role="checkbox" aria-checked="false"></div></td>
+        <td><span class="bog">one</span></td>
+        <td><div role="button" aria-label="Not starred">Star</div></td>
+      </tr>
+    </tbody></table></div></div>`, "#inbox");
+  w.document.querySelector('[aria-label="Not starred"]').addEventListener("click", () => {
+    w.__starredRow = "one";
+  });
+
+  const event = press(w, "s", { target: w.document.body });
+
+  assert.equal(event.defaultPrevented, true, "s should be claimed in the list");
+  assert.equal(w.__starredRow, "one", "s should toggle the row star");
+}
+
+// z clicks Gmail's visible Undo snackbar action.
+{
+  const w = load(listFixture() + '<button>Undo</button>', "#inbox");
+  w.document.querySelector("button").addEventListener("click", () => {
+    w.__undone = true;
+  });
+
+  const event = press(w, "z", { target: w.document.body });
+
+  assert.equal(event.defaultPrevented, true, "z should be claimed");
+  assert.equal(w.__undone, true, "z should click the Undo action");
+}
+
+// u toggles read/unread, h snoozes, Shift+E marks not done, and Shift+M mutes.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div><div class="a3s" data-message-id="m1">body</div></div>
+      <div role="toolbar">
+        <button aria-label="Mark as read">Mark as read</button>
+        <button aria-label="Snooze">Snooze</button>
+        <button aria-label="Move to inbox">Move to inbox</button>
+        <button aria-label="Mute">Mute</button>
+      </div>
+    </div>`, "#inbox/" + ID);
+  for (const button of w.document.querySelectorAll("button")) {
+    button.addEventListener("click", () => {
+      w.__triageAction = button.getAttribute("aria-label");
+    });
+  }
+
+  press(w, "u", { target: w.document.body });
+  assert.equal(w.__triageAction, "Mark as read", "u should mark read/unread");
+
+  press(w, "h", { target: w.document.body });
+  assert.equal(w.__triageAction, "Snooze", "h should snooze instead of moving to the previous conversation");
+
+  press(w, "E", { target: w.document.body, shiftKey: true });
+  assert.equal(w.__triageAction, "Move to inbox", "Shift+E should mark not done");
+
+  press(w, "M", { target: w.document.body, shiftKey: true });
+  assert.equal(w.__triageAction, "Mute", "Shift+M should mute");
+}
+
+// u on a list row should prefer the row's read/unread control and avoid leaving
+// the row selected.
+{
+  const w = load(`
+    <div role="main">
+      <div gh="tl"><table><tbody>
+        <tr class="zA" data-row="one">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">one</span></td>
+          <td><div role="button" aria-label="Mark as read">Mark as read</div></td>
+        </tr>
+      </tbody></table></div>
+      <div role="toolbar"><button aria-label="Mark as read">Mark as read</button></div>
+    </div>`, "#inbox");
+  const checkbox = w.document.querySelector('[role="checkbox"]');
+  checkbox.addEventListener("click", (event) => {
+    const cb = event.currentTarget;
+    cb.setAttribute("aria-checked", cb.getAttribute("aria-checked") === "true" ? "false" : "true");
+  });
+  w.document.querySelector('tr.zA [aria-label="Mark as read"]').addEventListener("click", () => {
+    w.__markedRead = true;
+  });
+
+  const event = press(w, "u", { target: w.document.body });
+
+  assert.equal(event.defaultPrevented, true, "u should be claimed in list view");
+  assert.equal(w.__markedRead, true, "u should click Mark as read");
+  assert.equal(checkbox.getAttribute("aria-checked"), "false", "u should not leave the list row selected");
+}
+
+// Cmd/Ctrl+U unsubscribes in thread view but remains available to compose fields.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div><div class="a3s" data-message-id="m1">body</div></div>
+      <button aria-label="Unsubscribe">Unsubscribe</button>
+    </div>`, "#inbox/" + ID);
+  w.document.querySelector('[aria-label="Unsubscribe"]').addEventListener("click", () => {
+    const dialog = w.document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.innerHTML = '<button>Unsubscribe</button>';
+    dialog.querySelector("button").addEventListener("click", () => {
+      w.__confirmedUnsubscribe = true;
+    });
+    w.document.body.appendChild(dialog);
+  });
+
+  const event = press(w, "u", { target: w.document.body, metaKey: true });
+
+  assert.equal(event.defaultPrevented, true, "Cmd+U should be claimed in thread view");
+  assert.equal(w.__confirmedUnsubscribe, true, "Cmd+U should confirm Gmail's unsubscribe dialog");
+}
+
+{
+  const w = load(replyFixture(), "#inbox/" + ID);
+  const body = w.document.querySelector('[contenteditable="true"]');
+  const attach = w.document.createElement("button");
+  attach.setAttribute("aria-label", "Attach files");
+  attach.addEventListener("click", () => {
+    w.__attachedFromReply = true;
+  });
+  w.document.body.appendChild(attach);
+  body.focus();
+
+  const event = press(w, "u", { target: body, metaKey: true });
+
+  assert.equal(event.defaultPrevented, true, "Cmd+U should be claimed while composing");
+  assert.equal(w.__attachedFromReply, true, "Cmd+U should attach files while composing");
+}
+
+// Cmd/Ctrl+O opens the first link or attachment in the focused message.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div><div class="a3s" data-message-id="m1"><a href="https://example.com">link</a></div></div>
+    </div>`, "#inbox/" + ID);
+  w.document.querySelector("a").addEventListener("click", (event) => {
+    event.preventDefault();
+    w.__openedLink = true;
+  });
+
+  const event = press(w, "o", { target: w.document.body, metaKey: true });
+
+  assert.equal(event.defaultPrevented, true, "Cmd+O should be claimed in thread view");
+  assert.equal(w.__openedLink, true, "Cmd+O should click the focused message link");
+}
+
+// Superhuman's attach shortcut is Cmd/Ctrl+U in compose.
+{
+  const w = load(`
+    <div role="dialog">
+      <div aria-label="Message Body" contenteditable="true" role="textbox"></div>
+      <button aria-label="Attach files">Attach files</button>
+    </div>`, "#inbox");
+  const body = w.document.querySelector('[contenteditable="true"]');
+  body.focus();
+  w.document.querySelector('[aria-label="Attach files"]').addEventListener("click", () => {
+    w.__attached = true;
+  });
+
+  const event = press(w, "u", { target: body, metaKey: true });
+
+  assert.equal(event.defaultPrevented, true, "Cmd+U should be claimed in compose");
+  assert.equal(w.__attached, true, "Cmd+U should click Attach files");
+}
+
+// Label and move shortcuts drive Gmail toolbar controls.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div><div class="a3s" data-message-id="m1">body</div></div>
+      <div role="toolbar">
+        <button aria-label="Labels">Labels</button>
+        <button aria-label="Remove label">Remove label</button>
+        <button aria-label="Remove all labels">Remove all labels</button>
+        <button aria-label="Move to">Move to</button>
+      </div>
+    </div>`, "#inbox/" + ID);
+  for (const button of w.document.querySelectorAll("button")) {
+    button.addEventListener("click", () => {
+      w.__toolbarAction = button.getAttribute("aria-label");
+    });
+  }
+
+  press(w, "l", { target: w.document.body });
+  assert.equal(w.__toolbarAction, "Labels", "l should open the label menu");
+
+  press(w, "y", { target: w.document.body });
+  assert.equal(w.__toolbarAction, "Remove label", "y should remove the current label");
+
+  press(w, "Y", { target: w.document.body, shiftKey: true });
+  assert.equal(w.__toolbarAction, "Remove all labels", "Shift+Y should remove all labels");
+
+  press(w, "v", { target: w.document.body });
+  assert.equal(w.__toolbarAction, "Move to", "v should open the move menu");
 }
 
 // Regression guard for the exact crash we just hit: a keydown whose target is the

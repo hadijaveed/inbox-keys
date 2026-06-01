@@ -4,7 +4,11 @@
   "private": true,
   "description": "Open Superhuman — Gmail command palette, hotkeys, split inbox & calendar (Chrome MV3 extension).",
   "scripts": {
-    "test": "node tests/hashutil.test.js && node tests/getcontext.test.js && node tests/hotkeys.test.js && node tests/key-behavior-sim.test.js"
+    "test": "node tests/hashutil.test.js && node tests/getcontext.test.js && node tests/hotkeys.test.js && node tests/key-behavior-sim.test.js",
+    "smoke:install": "npm install --save-dev playwright && npx playwright install chromium",
+    "smoke:gmail:setup": "node smoke/gmail-readonly-smoke.js setup",
+    "smoke:gmail:readonly": "node smoke/gmail-readonly-smoke.js readonly",
+    "smoke:gmail:readonly:headed": "node smoke/gmail-readonly-smoke.js readonly --headed"
   },
   "devDependencies": {
     "jsdom": "^24.1.0"

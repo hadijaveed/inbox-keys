@@ -27,6 +27,7 @@ window.CMDK = window.CMDK || {};
       tag === "TEXTAREA" ||
       tag === "SELECT" ||
       el.isContentEditable ||
+      el.getAttribute("contenteditable") === "true" ||
       el.getAttribute("role") === "textbox"
     );
   }
@@ -214,6 +215,14 @@ window.CMDK = window.CMDK || {};
     }
     if (!storage.get("hotkeysEnabled")) return;
 
+    // Escape from Gmail's attachment preview should close the preview first. Gmail
+    // exposes that preview as a dialog, so it otherwise looks like a generic modal
+    // and would block the normal thread Escape path.
+    if (e.key === "Escape" && (ctx === "attachmentPreview" || (gmail.hasAttachmentPreview && gmail.hasAttachmentPreview()))) {
+      if (gmail.closeAttachmentPreview && gmail.closeAttachmentPreview()) consume(e);
+      return;
+    }
+
     // Escape inside an open reply: cancel/leave reply mode first. Only a later
     // Escape from normal thread reading should go back to the list.
     if (e.key === "Escape" && gmail.hasOpenThreadReply && gmail.hasOpenThreadReply()) {
@@ -228,6 +237,30 @@ window.CMDK = window.CMDK || {};
       return;
     }
 
+    const composeBody = gmail.composeBody && gmail.composeBody();
+    const inComposeBody = composeBody && e.target && (e.target === composeBody || composeBody.contains(e.target));
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "u" && (ctx === "compose" || inComposeBody)) {
+      consume(e);
+      gmail.attachFile();
+      return;
+    }
+
+    // Modified Superhuman bindings. Keep compose/editable fields protected so
+    // Gmail/browser formatting shortcuts still work while writing.
+    if (!isEditable(e.target) && !e.altKey && !e.shiftKey && (e.metaKey || e.ctrlKey)) {
+      const modKey = e.key.toLowerCase();
+      if (modKey === "u" && ctx === "threadView") {
+        consume(e);
+        gmail.unsubscribe();
+        return;
+      }
+      if (modKey === "o" && ctx === "threadView") {
+        consume(e);
+        gmail.openLinkOrAttachment(threadnav.currentCard ? threadnav.currentCard() : document);
+        return;
+      }
+    }
+
     // Below here we never fire while typing or with modifier chords (except the
     // Shift cases we special-case explicitly).
     if (isEditable(e.target) && !canOverrideEditable(e, ctx)) return;
@@ -236,16 +269,18 @@ window.CMDK = window.CMDK || {};
     // Thread view: j/k move between conversations. Arrows move the visible cursor
     // through message cards plus explicit expansion controls inside the current
     // thread; when there is nowhere else to move, arrows scroll the reading pane.
-    // Enter activates the focused message/control, so navigation itself never
-    // expands the thread.
+    // Enter opens a collapsed focused message, then reply-alls once expanded.
+    // "o" always toggles the focused message/control.
     if (ctx === "threadView") {
       if (e.key === "j") { consume(e); gmail.nextThread(); return; }
-      if (e.key === "k" || e.key === "h") { consume(e); gmail.prevThread(); return; }
+      if (e.key === "k") { consume(e); gmail.prevThread(); return; }
       if (e.key === "ArrowDown") { consume(e); if (!threadnav.moveArrow(1)) gmail.threadScrollBy(1); return; }
       if (e.key === "ArrowUp") { consume(e); if (!threadnav.moveArrow(-1)) gmail.threadScrollBy(-1); return; }
       if (e.key === "PageDown") { consume(e); gmail.threadScrollBy(1, 0.9); return; }
       if (e.key === "PageUp") { consume(e); gmail.threadScrollBy(-1, 0.9); return; }
-      if (e.key === "Enter") { consume(e); threadnav.activate(); return; }
+      if (e.key === "Enter") { consume(e); threadnav.activateFocused(); return; }
+      if (e.key.toLowerCase() === "o" && e.shiftKey) { consume(e); threadnav.expandAllToggle(); return; }
+      if (e.key.toLowerCase() === "o") { consume(e); threadnav.toggleFocused(); return; }
       if (e.key === ":" || e.key === ";") { consume(e); threadnav.expandAllToggle(); return; }
       if (e.key.toLowerCase() === "e" && !e.shiftKey) { consume(e); gmail.archiveThread(); return; }
       if (e.key.toLowerCase() === "r" && !e.shiftKey) { consume(e); gmail.replyToThread(); return; }
@@ -272,6 +307,27 @@ window.CMDK = window.CMDK || {};
     ) {
       consume(e);
       gmail.listScrollBottom();
+      return;
+    }
+
+    if (e.shiftKey && e.key.toLowerCase() === "e" && (ctx === "inboxList" || ctx === "threadView")) {
+      consume(e);
+      if (ctx === "inboxList" && listnav.withSelection) listnav.withSelection(() => gmail.markNotDone());
+      else gmail.markNotDone();
+      return;
+    }
+
+    if (e.shiftKey && e.key.toLowerCase() === "m" && (ctx === "inboxList" || ctx === "threadView")) {
+      consume(e);
+      if (ctx === "inboxList" && listnav.withSelection) listnav.withSelection(() => gmail.mute());
+      else gmail.mute();
+      return;
+    }
+
+    if (e.shiftKey && e.key.toLowerCase() === "y" && (ctx === "inboxList" || ctx === "threadView")) {
+      consume(e);
+      if (ctx === "inboxList" && listnav.withSelection) listnav.withSelection(() => gmail.removeAllLabels());
+      else gmail.removeAllLabels();
       return;
     }
 

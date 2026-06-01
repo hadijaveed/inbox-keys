@@ -3,8 +3,10 @@
 // A conversation is a stack of message cards ([role="listitem"], each with a
 // .gE header). Gmail collapses all but the latest (and stacks the middle ones).
 // We keep a cursor over visible cards and explicit expansion controls. Moving
-// the cursor never expands/collapses anything; Enter activates the focused card
-// or expansion control. All driven by real clicks — Gmail ignores synthetic keys.
+// the cursor never expands/collapses anything. Enter opens a collapsed focused
+// message first, then replies once that message is expanded. "o" always toggles
+// the focused card or expansion control. All driven by real clicks — Gmail
+// ignores synthetic keys.
 window.CMDK = window.CMDK || {};
 
 (function () {
@@ -150,21 +152,17 @@ window.CMDK = window.CMDK || {};
     return true;
   }
 
-  // Enter activates the focused target. Expansion controls are clicked. Collapsed
-  // message cards are opened via their header. Expanded cards start Reply All
-  // scoped to that exact card.
-  function activate() {
+  // "o" activates the focused target. Expansion controls are clicked. Message
+  // cards are expanded/collapsed through their header.
+  function toggleFocused() {
     const c = arrowTargets();
     if (!c.length) return;
     const idx = ensureCursor(c);
     const target = c[idx];
     if (!target) return;
     if (target.matches('[role="listitem"]')) {
-      if (isExpandedCard(target)) gmail.replyAllToThread(target);
-      else {
-        const header = target.querySelector(".gE");
-        if (header) gmail.realClick(header);
-      }
+      const header = target.querySelector(".gE");
+      if (header) gmail.realClick(header);
     } else {
       gmail.realClick(target);
     }
@@ -172,8 +170,32 @@ window.CMDK = window.CMDK || {};
     setTimeout(() => paint(), 120);
   }
 
+  function replyAllFocused() {
+    const card = currentCard();
+    return gmail.replyAllToThread(card || document);
+  }
+
+  function activateFocused() {
+    const c = arrowTargets();
+    if (!c.length) return false;
+    const idx = ensureCursor(c);
+    const target = c[idx];
+    if (!target) return false;
+    if (!target.matches('[role="listitem"]')) {
+      gmail.realClick(target);
+      setTimeout(() => paint(), 120);
+      return true;
+    }
+    if (isExpandedCard(target)) return gmail.replyAllToThread(target);
+    const header = target.querySelector(".gE");
+    if (!header) return false;
+    gmail.realClick(header);
+    setTimeout(() => paint(), 120);
+    return true;
+  }
+
   function toggle() {
-    activate();
+    toggleFocused();
   }
 
   // Expand all (or collapse all if already expanded) — the conversation's
@@ -190,5 +212,5 @@ window.CMDK = window.CMDK || {};
 
   window.addEventListener("hashchange", reset);
 
-  CMDK.threadnav = { move, moveArrow, activate, toggle, expandAllToggle, currentCard, reset };
+  CMDK.threadnav = { move, moveArrow, toggleFocused, replyAllFocused, activateFocused, toggle, expandAllToggle, currentCard, reset };
 })();
