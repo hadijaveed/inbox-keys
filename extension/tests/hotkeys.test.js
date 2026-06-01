@@ -46,6 +46,21 @@ function threadFixture() {
     </div>`;
 }
 
+function collapsedThreadFixture() {
+  return `
+    <div role="main">
+      <div role="listitem" data-card="first">
+        <div class="gE">first header</div>
+        <button class="ams">Reply all</button>
+      </div>
+      <div role="listitem" data-card="second">
+        <div class="gE">second header</div>
+        <div class="a3s" data-message-id="m2">second body</div>
+        <button class="ams">Reply all</button>
+      </div>
+    </div>`;
+}
+
 function replyFixture() {
   return `
     <div role="main">
@@ -190,19 +205,43 @@ function wireList(w) {
   assert.equal(rows(w).some((row) => row.classList.contains("cmdk-cursor")), false, "compose typing should not move the list cursor");
 }
 
-// Thread Enter reply-alls against the focused message card, not a global button.
+// Thread navigation only moves the cursor; Enter on a collapsed focused message
+// opens that message.
 {
-  const w = load(threadFixture(), "#inbox/" + ID);
+  const w = load(collapsedThreadFixture(), "#inbox/" + ID);
+  const headerClicks = [];
   for (const card of w.document.querySelectorAll('[role="listitem"]')) {
-    card.querySelector(".ams").addEventListener("click", () => {
-      w.__replyAllCard = card.getAttribute("data-card");
+    card.querySelector(".gE").addEventListener("click", () => {
+      headerClicks.push(card.getAttribute("data-card"));
     });
   }
 
-  press(w, "ArrowUp", { target: w.document.body });
+  press(w, "k", { target: w.document.body });
+  assert.deepEqual(headerClicks, [], "moving to a message must not expand or collapse it");
   press(w, "Enter", { target: w.document.body });
 
-  assert.equal(w.__replyAllCard, "first", "Enter should reply-all from the focused message card");
+  assert.deepEqual(headerClicks, ["first"], "Enter should expand/collapse the focused message card");
+}
+
+// Enter on an expanded focused message starts Reply All on that particular card.
+{
+  const w = load(threadFixture(), "#inbox/" + ID);
+  const replyAllCards = [];
+  const headerClicks = [];
+  for (const card of w.document.querySelectorAll('[role="listitem"]')) {
+    card.querySelector(".ams").addEventListener("click", () => {
+      replyAllCards.push(card.getAttribute("data-card"));
+    });
+    card.querySelector(".gE").addEventListener("click", () => {
+      headerClicks.push(card.getAttribute("data-card"));
+    });
+  }
+
+  press(w, "k", { target: w.document.body });
+  press(w, "Enter", { target: w.document.body });
+
+  assert.deepEqual(replyAllCards, ["first"], "Enter should reply-all on the focused expanded message card");
+  assert.deepEqual(headerClicks, [], "Enter should not collapse an already-expanded focused message");
 }
 
 // Thread-level shortcuts that do not involve a reply composer.
@@ -278,87 +317,266 @@ function wireList(w) {
   assert.deepEqual(checked(), ["true", "false", "false", "false"], "Shift+Up keeps shrinking back toward the anchor");
 }
 
-// A message card whose only inline action is Reply + Forward (no inline reply-all),
-// matching real Gmail. Clicking "Reply" opens a reply surface whose "Type of
-// response" caret opens a Reply / Reply to all / Forward menu. Handlers mutate the
-// DOM synchronously, so gmail.waitFor's first synchronous probe resolves the whole
-// chain without timers.
-function wireReplyAllSurface(w) {
-  const main = w.document.querySelector('[role="main"]');
-  const replyLink = Array.from(w.document.querySelectorAll(".ams")).find((el) => (el.textContent || "").trim() === "Reply");
-  replyLink.addEventListener("click", () => {
-    if (w.document.querySelector('[aria-label="Type of response"]')) return;
-    const surface = w.document.createElement("div");
-    surface.innerHTML =
-      '<div role="button" aria-haspopup="true" aria-label="Type of response"></div>' +
-      '<div aria-label="Message Body" contenteditable="true"></div>' +
-      '<div role="button" aria-label="Send">Send</div>';
-    surface.querySelector('[aria-label="Type of response"]').addEventListener("click", () => {
-      if (surface.querySelector('[role="menu"]')) return;
-      const menu = w.document.createElement("div");
-      menu.setAttribute("role", "menu");
-      menu.innerHTML =
-        '<div role="menuitem">Reply</div>' +
-        '<div role="menuitem">Reply to all</div>' +
-        '<div role="menuitem">Forward</div>';
-      menu.querySelectorAll('[role="menuitem"]').forEach((mi) =>
-        mi.addEventListener("click", () => {
-          w.__pickedResponse = (mi.textContent || "").trim();
-        })
-      );
-      surface.appendChild(menu);
-    });
-    main.appendChild(surface);
-  });
-}
-
-const REPLY_FIXTURE_NO_INLINE_ALL = `
+// Real Gmail puts the inline Reply / Reply all / Forward controls at the BOTTOM of
+// the conversation, OUTSIDE the focused message card. Reply-all clicks the inline
+// "Reply all" when the thread has other recipients; on a two-person thread Gmail
+// offers no "Reply all" and a plain "Reply" already reaches the only other person.
+// Reply-all must NEVER open the response-type caret menu (that menu popped over the
+// compose box and fought with typing).
+const THREAD_MULTI_RECIPIENT = `
   <div role="main">
     <div role="listitem" data-card="only">
       <div class="gE">header</div>
       <div class="a3s" data-message-id="m1">body</div>
-      <span class="ams bkH">Reply</span>
-      <span class="ams bkG">Forward</span>
     </div>
+    <span class="ams bkH">Reply</span>
+    <span class="ams">Reply all</span>
+    <span class="ams bkG">Forward</span>
   </div>`;
 
-// Enter in a thread must always REPLY-ALL, even when Gmail exposes no inline
-// reply-all button (it must open a reply and drive the response-type menu).
+const THREAD_TWO_PERSON = `
+  <div role="main">
+    <div role="listitem" data-card="only">
+      <div class="gE">header</div>
+      <div class="a3s" data-message-id="m1">body</div>
+    </div>
+    <span class="ams bkH">Reply</span>
+    <span class="ams bkG">Forward</span>
+  </div>`;
+
+function wireInlineActions(w, opts = {}) {
+  for (const link of w.document.querySelectorAll(".ams")) {
+    link.addEventListener("click", () => {
+      w.__clickedAction = (link.textContent || "").trim();
+      if (opts.openCompose === false || w.document.querySelector('[aria-label="Message Body"]')) return;
+      const surface = w.document.createElement("div");
+      surface.setAttribute("data-compose-surface", "true");
+      surface.innerHTML = '<div aria-label="Message Body" contenteditable="true" role="textbox"></div>';
+      if (opts.withBlockingMenu) {
+        const menu = w.document.createElement("div");
+        menu.setAttribute("role", "menu");
+        menu.innerHTML =
+          '<div role="menuitem">Reply</div>' +
+          '<div role="menuitem">Forward</div>' +
+          '<div role="menuitem">Edit subject</div>' +
+          '<div role="menuitem">Pop out reply</div>';
+        surface.appendChild(menu);
+      }
+      const body = surface.querySelector('[aria-label="Message Body"]');
+      body.addEventListener("focus", () => {
+        w.__replyBodyFocused = true;
+      });
+      body.addEventListener("click", () => {
+        const menu = w.document.querySelector('[role="menu"]');
+        if (menu) menu.remove();
+      });
+      w.document.querySelector('[role="main"]').appendChild(surface);
+    });
+  }
+}
+
+// Enter on a multi-recipient thread clicks the inline "Reply all" in one step (no
+// response-type menu).
 {
-  const w = load(REPLY_FIXTURE_NO_INLINE_ALL, "#inbox/" + ID);
-  wireReplyAllSurface(w);
+  const w = load(THREAD_MULTI_RECIPIENT, "#inbox/" + ID);
+  wireInlineActions(w);
 
   press(w, "Enter", { target: w.document.body });
 
-  assert.equal(w.__pickedResponse, "Reply to all", "Enter must reach Reply to all via the response-type menu when no inline reply-all exists");
+  assert.equal(w.__clickedAction, "Reply all", "Enter should click the inline Reply all on a multi-recipient thread");
 }
 
-// r is plain reply: it opens a reply but must NOT walk the menu to reply-all, so
-// the two bindings stay distinct (Enter = all, r = single).
+// After opening Reply all, focus must land in the compose body and any transient
+// reply dropdown should be dismissed before the user starts typing.
 {
-  const w = load(REPLY_FIXTURE_NO_INLINE_ALL, "#inbox/" + ID);
-  wireReplyAllSurface(w);
+  const w = load(THREAD_MULTI_RECIPIENT, "#inbox/" + ID);
+  wireInlineActions(w, { withBlockingMenu: true });
+
+  press(w, "Enter", { target: w.document.body });
+
+  const body = w.document.querySelector('[aria-label="Message Body"]');
+  assert.equal(w.__clickedAction, "Reply all", "Enter should click the inline Reply all");
+  assert.equal(w.__replyBodyFocused, true, "Reply all should focus the message body");
+  assert.equal(w.document.activeElement, body, "the message body should receive keyboard focus");
+  assert.equal(w.document.querySelector('[role="menu"]'), null, "reply dropdown menu should not remain open over the composer");
+}
+
+// Enter on a two-person thread (no Reply all offered) opens a plain reply, which
+// already goes to the only other person. No menu.
+{
+  const w = load(THREAD_TWO_PERSON, "#inbox/" + ID);
+  wireInlineActions(w);
+
+  press(w, "Enter", { target: w.document.body });
+
+  assert.equal(w.__clickedAction, "Reply", "Enter opens a plain reply when there is no Reply all (it is the reply-all)");
+}
+
+// The "a" key reply-alls the conversation the same way.
+{
+  const w = load(THREAD_MULTI_RECIPIENT, "#inbox/" + ID);
+  wireInlineActions(w);
+
+  press(w, "a", { target: w.document.body });
+
+  assert.equal(w.__clickedAction, "Reply all", "the a key should click the inline Reply all");
+}
+
+// r is always a plain reply, even when Reply all is available, so Enter (all) and
+// r (single) stay distinct.
+{
+  const w = load(THREAD_MULTI_RECIPIENT, "#inbox/" + ID);
+  wireInlineActions(w);
 
   press(w, "r", { target: w.document.body });
 
-  assert.equal(!!w.document.querySelector('[aria-label="Message Body"]'), true, "r should open a reply");
-  assert.equal(w.__pickedResponse, undefined, "r must not switch the reply to reply-all");
+  assert.equal(w.__clickedAction, "Reply", "r should always open a plain reply");
 }
 
-// j/k move the thread's message cursor across cards; Enter reply-alls the focused
-// one. (ArrowUp→first is covered above; this covers j→down.)
+// j moves the thread's message cursor DOWN across cards, without expanding the
+// target. The cursor starts on the latest card, so we step up with k first, then
+// back down with j to prove downward movement.
 {
-  const w = load(threadFixture(), "#inbox/" + ID);
+  const threeCards = `
+    <div role="main">
+      <div role="listitem" data-card="a"><div class="gE">a</div><div class="a3s" data-message-id="m1">a</div></div>
+      <div role="listitem" data-card="b"><div class="gE">b</div><div class="a3s" data-message-id="m2">b</div></div>
+      <div role="listitem" data-card="c"><div class="gE">c</div><div class="a3s" data-message-id="m3">c</div></div>
+    </div>`;
+  const w = load(threeCards, "#inbox/" + ID);
+  const headerClicks = [];
   for (const card of w.document.querySelectorAll('[role="listitem"]')) {
-    card.querySelector(".ams").addEventListener("click", () => {
-      w.__replyAllCard = card.getAttribute("data-card");
+    card.querySelector(".gE").addEventListener("click", () => {
+      headerClicks.push(card.getAttribute("data-card"));
     });
   }
 
-  press(w, "j", { target: w.document.body });
-  press(w, "Enter", { target: w.document.body });
+  press(w, "k", { target: w.document.body }); // c -> b
+  press(w, "k", { target: w.document.body }); // b -> a
+  press(w, "j", { target: w.document.body }); // a -> b
 
-  assert.equal(w.__replyAllCard, "second", "j should move the message cursor to the next card");
+  assert.deepEqual(headerClicks, [], "j/k movement must not click message headers");
+  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("cmdk-msg-cursor"), true, "j should move the message cursor down to the next card");
+}
+
+// Arrows move the indicator between cards; at the first/last card they fall back
+// to scrolling the reading pane. Movement does not expand the focused card.
+{
+  const w = load(threadFixture(), "#inbox/" + ID);
+  const main = w.document.querySelector('[role="main"]');
+  main.style.overflowY = "scroll";
+  Object.defineProperty(main, "scrollHeight", { value: 5000, configurable: true });
+  Object.defineProperty(main, "clientHeight", { value: 800, configurable: true });
+  const scrolled = [];
+  main.scrollBy = (opts) => scrolled.push(opts.top);
+  const cardEls = Array.from(w.document.querySelectorAll('[role="listitem"]'));
+  const headerClicks = [];
+  for (const card of cardEls) {
+    card.querySelector(".gE").addEventListener("click", () => {
+      headerClicks.push(card.getAttribute("data-card"));
+    });
+  }
+
+  // Cursor starts on the latest (second) card; ArrowUp moves the indicator up to the first.
+  const up = press(w, "ArrowUp", { target: w.document.body });
+  assert.equal(up.defaultPrevented, true, "ArrowUp is claimed in thread view");
+  assert.equal(cardEls[0].classList.contains("cmdk-msg-cursor"), true, "ArrowUp moves the indicator to the first card");
+  assert.deepEqual(headerClicks, [], "ArrowUp must not expand/collapse while moving the cursor");
+  assert.equal(scrolled.length, 0, "moving the indicator between messages must not scroll");
+
+  // Already on the first card: ArrowUp has nowhere to go, so it scrolls the pane up.
+  press(w, "ArrowUp", { target: w.document.body });
+  assert.ok(scrolled.length === 1 && scrolled[0] < 0, "ArrowUp at the first card falls back to scrolling up");
+
+  // PageDown always scrolls the reading pane (a larger step).
+  const pageDown = press(w, "PageDown", { target: w.document.body });
+  assert.equal(pageDown.defaultPrevented, true, "PageDown is claimed in thread view");
+  assert.ok(scrolled.length === 2 && scrolled[1] > 0, "PageDown scrolls the reading pane down");
+}
+
+// Arrow traversal should not stop on the global Expand all button; that action
+// has its own ":" shortcut.
+{
+  const w = load(threadFixture(), "#inbox/" + ID);
+  const main = w.document.querySelector('[role="main"]');
+  main.style.overflowY = "scroll";
+  Object.defineProperty(main, "scrollHeight", { value: 5000, configurable: true });
+  Object.defineProperty(main, "clientHeight", { value: 800, configurable: true });
+  const scrolled = [];
+  main.scrollBy = (opts) => scrolled.push(opts.top);
+  const expandAll = w.document.querySelector('[aria-label="Expand all"]');
+
+  press(w, "ArrowDown", { target: w.document.body });
+
+  assert.equal(expandAll.classList.contains("cmdk-msg-cursor"), false, "ArrowDown should not focus the global Expand all control");
+  assert.ok(scrolled.length === 1 && scrolled[0] > 0, "ArrowDown at the latest message should scroll instead");
+}
+
+// Arrow navigation includes explicit expansion opportunities between message
+// cards; j/k still skip those controls and move only between emails.
+{
+  const mixedThread = `
+    <div role="main">
+      <div role="listitem" data-card="a"><div class="gE">a</div><div class="a3s" data-message-id="m1">a</div></div>
+      <div role="button" aria-expanded="false" data-expander="more">3 collapsed messages</div>
+      <div role="listitem" data-card="b"><div class="gE">b</div><div class="a3s" data-message-id="m2">b</div></div>
+    </div>`;
+  const w = load(mixedThread, "#inbox/" + ID);
+  const expander = w.document.querySelector('[data-expander="more"]');
+  expander.addEventListener("click", () => {
+    w.__expandedOpportunity = true;
+  });
+
+  press(w, "ArrowUp", { target: w.document.body });
+  assert.equal(expander.classList.contains("cmdk-msg-cursor"), true, "ArrowUp should stop on an expansion opportunity");
+
+  press(w, "Enter", { target: w.document.body });
+  assert.equal(w.__expandedOpportunity, true, "Enter should activate the focused expansion opportunity");
+
+  press(w, "j", { target: w.document.body });
+  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("cmdk-msg-cursor"), true, "j should move to the next email, skipping expansion controls");
+}
+
+// A single-message thread (a long newsletter): there's no other card to move to, so
+// arrows scroll the reading pane instead of moving the indicator.
+{
+  const oneCard = `
+    <div role="main">
+      <div role="listitem" data-card="only"><div class="gE">h</div><div class="a3s" data-message-id="m1">long body</div></div>
+    </div>`;
+  const w = load(oneCard, "#inbox/" + ID);
+  const main = w.document.querySelector('[role="main"]');
+  main.style.overflowY = "scroll";
+  Object.defineProperty(main, "scrollHeight", { value: 9000, configurable: true });
+  Object.defineProperty(main, "clientHeight", { value: 800, configurable: true });
+  const scrolled = [];
+  main.scrollBy = (opts) => scrolled.push(opts.top);
+
+  const down = press(w, "ArrowDown", { target: w.document.body });
+  assert.equal(down.defaultPrevented, true, "ArrowDown is claimed in a single-message thread");
+  assert.ok(scrolled.length === 1 && scrolled[0] > 0, "ArrowDown scrolls a long single message (nothing to navigate to)");
+  assert.equal(
+    Array.from(w.document.querySelectorAll('[role="listitem"]')).some((c) => c.classList.contains("cmdk-msg-cursor")),
+    false,
+    "a single-message thread has no other card to move the indicator to"
+  );
+}
+
+// k walks the message cursor UP across cards (3-message thread): cursor starts on
+// the latest message, k steps to the middle one, then the first.
+{
+  const threeCards = `
+    <div role="main">
+      <div role="listitem" data-card="a"><div class="gE">a</div><div class="a3s" data-message-id="m1">a</div></div>
+      <div role="listitem" data-card="b"><div class="gE">b</div><div class="a3s" data-message-id="m2">b</div></div>
+      <div role="listitem" data-card="c"><div class="gE">c</div><div class="a3s" data-message-id="m3">c</div></div>
+    </div>`;
+  const w = load(threeCards, "#inbox/" + ID);
+
+  press(w, "k", { target: w.document.body }); // c -> b
+  press(w, "k", { target: w.document.body }); // b -> a
+
+  assert.equal(w.document.querySelector('[data-card="a"]').classList.contains("cmdk-msg-cursor"), true, "k should walk the message cursor up to the first card");
 }
 
 // Cmd+K toggles the command palette; Escape closes it. (The palette getting stuck

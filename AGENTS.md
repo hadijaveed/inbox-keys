@@ -97,15 +97,12 @@ tr.zA                              a list row
 input[aria-label="Search mail"], input[name="q"]   the search box
 ```
 
-Reply-all is the most fragile path and has regressed repeatedly. `replyAllToThread(scope)` is now deliberately simple, and crucially it does NOT open Gmail's response-type caret menu:
+Reply-all is the most fragile path and has regressed repeatedly:
 
-1. Click Gmail's inline "Reply all" button (`inlineReplyAll`: the bottom `.ams` link, or a labeled/exact "Reply all" / "Reply to all" button). Gmail renders it at the BOTTOM of the conversation whenever the thread has other recipients; clicking it opens the composer addressed to everyone in ONE step (verified live: a three-person thread opened with all three on it). Look in the focused card first, then fall back to the whole thread (document), because the inline controls live at the bottom OUTSIDE the message card listitem (`amsInsideLastCard` was empty live) and the per-message reply icon is hover-gated.
-2. If there is no inline "Reply all" (a two-person thread), open a plain reply via `replyToThread` (same scope-then-document fallback). A plain reply already goes to the only other person, so it IS the reply-all. Done, no menu.
-
-Why no caret menu: the old flow opened a reply, then clicked the reply-type caret `[aria-label="Type of response"]` to switch to "Reply to all". On a two-person thread (no reply-all) that menu opened pointlessly and sat over the compose box, conflicting with typing — the reported "very very weird" Enter behavior. Driving reply-all straight from the inline "Reply all" button avoids the menu entirely.
-
-- Do NOT reintroduce the response-type caret menu, and do NOT try the per-message kebab. The kebab's aria-label varies across threads ("More message options" vs "More email options"), it is hover-gated, and it is easily confused with the conversation toolbar "More email options" menu, which has no reply-all item at all (Snooze / Add to Tasks / Forward all / Mute / …). Both were tried and reverted.
-- Known tradeoff: if a multi-recipient thread ever fails to render an inline "Reply all", reply-all degrades to a plain reply rather than silently popping a menu. Live testing on current Gmail showed the inline button present whenever reply-all applied, so this is acceptable; if it ever regresses, detect recipient count rather than reopening the caret menu.
+- Real Gmail often has NO inline reply-all button. The inline `.ams` links are frequently only "Reply" and "Forward".
+- Reply-all lives behind the open reply's reply-type caret `[aria-label="Type of response"]`. Clicking it opens a menu of plain-text `[role="menuitem"]` items like "Reply to all". The caret can render just outside the compose surface, so it is looked up document-wide (a thread has at most one open reply).
+- Gmail renders the reply surface and that menu asynchronously. Use `gmail.waitFor(find, onFound, onGiveUp)`, which polls; its first probe is synchronous, so when the DOM already exists the whole chain completes without timers. The old bug was fixed `setTimeout`s that fired before the caret existed and silently gave up. Keep the waitFor pattern.
+- Some messages genuinely offer no reply-all (a forward, or you are the only other recipient). Then the single reply already is the reply-all; the code closes the menu and stops. That is not a bug.
 
 ## Develop and test
 

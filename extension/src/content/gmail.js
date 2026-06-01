@@ -267,27 +267,51 @@ window.CMDK = window.CMDK || {};
   // Start a reply on the open thread: the inline "Reply" link, else the
   // per-message reply arrow icon.
   function replyToThread(scope = document) {
-    return realClick(
+    const opened = realClick(
       amsButton(/^reply$/i, scope) ||
         labeledButton([/^Reply(?!\s+(all|to all))\b/i], scope) ||
         exactButton("Reply", scope)
     );
+    if (opened) focusReplyBodySoon();
+    return opened;
   }
-  function replyAllToThread(scope = document) {
-    const direct =
+  // The inline "Reply all" button Gmail renders at the BOTTOM of a multi-recipient
+  // conversation (the `.ams` links, or a labeled/exact-labeled button).
+  function inlineReplyAll(scope = document) {
+    return (
       amsButton(/^reply all\b/i, scope) ||
       labeledButton([/^Reply all\b/i, /^Reply to all\b/i], scope) ||
-      exactButton("Reply to all", scope);
-    if (realClick(direct)) return true;
+      exactButton("Reply to all", scope)
+    );
+  }
 
-    // No inline reply-all button (common in real Gmail): open a reply, then drive
-    // its response-type menu to "Reply to all". The reply surface and that menu
-    // render asynchronously, so we POLL for each rather than guess a delay. Fixed
-    // setTimeouts were the recurring "Enter only single-replies" bug: they fired
-    // before the caret/menu existed and silently gave up.
-    if (!replyToThread(scope)) return false;
-    waitFor(responseTypeCaret, () => switchOpenReplyToAll());
-    return true;
+  function replyAllToThread(scope = document) {
+    // Reply-all clicks Gmail's inline "Reply all" button (verified live: it opens
+    // the composer addressed to everyone in ONE click). When the thread is just you
+    // and one other person Gmail offers no "Reply all" — a plain reply already goes
+    // to that person — so we open that instead.
+    //
+    // We deliberately NEVER open the response-type caret menu. That menu popped up
+    // over the compose box and fought with typing, and on a two-person thread there
+    // is nothing to switch to anyway. Look in the focused card first, then fall back
+    // to the whole thread: the inline controls live at the bottom of the
+    // conversation, outside the message card listitem, so a card-only lookup
+    // usually finds nothing (this was the silent-dead-Enter funkiness).
+    const replyAll = inlineReplyAll(scope) || (scope !== document && inlineReplyAll(document));
+    if (realClick(replyAll)) {
+      focusReplyBodySoon();
+      return true;
+    }
+
+    // No reply-all offered (two-person thread): the single reply IS the reply-all.
+    return replyToThread(scope) || (scope !== document && replyToThread(document));
+  }
+
+  function focusReplyBodySoon() {
+    waitFor(composeBody, (body) => {
+      if (typeof body.focus === "function") body.focus();
+      realClick(body);
+    }, null, 10, 60);
   }
 
   // Poll for an element Gmail renders lazily; run onFound when it appears, else
@@ -299,46 +323,6 @@ window.CMDK = window.CMDK || {};
     if (el) return onFound(el);
     if (tries <= 0) return onGiveUp && onGiveUp();
     setTimeout(() => waitFor(find, onFound, onGiveUp, tries - 1, interval), interval);
-  }
-
-  // The reply's response-type caret (aria-label="Type of response"). It can render
-  // just outside the compose surface, so it's looked up document-wide — a thread
-  // has at most one open reply. The old composeSurface-scoped lookup missed it and
-  // silently left a single reply.
-  function responseTypeCaret() {
-    return (
-      exactButton("Type of response") ||
-      labeledButton([/^Type of response\b/i, /^Response options\b/i, /^More response options\b/i])
-    );
-  }
-
-  // The "Reply to all" item in the open response-type menu: a plain-text
-  // [role="menuitem"] with no aria-label, so matched by its text.
-  function replyAllMenuItem() {
-    return (
-      Array.from(document.querySelectorAll('[role="menuitem"], [role="menuitemradio"], .J-N'))
-        .filter(isVisible)
-        .find((el) => /^reply (to )?all$/i.test((el.textContent || "").trim().replace(/\s+/g, " "))) ||
-      null
-    );
-  }
-
-  // Open the reply's response-type menu and choose Reply to all. Polls because the
-  // menu renders lazily. If reply-all isn't offered (the message has no other
-  // recipients) the single reply already IS the reply-all, so we close the menu.
-  function switchOpenReplyToAll() {
-    const caret = responseTypeCaret();
-    if (!caret) return false;
-    realClick(caret);
-    waitFor(
-      replyAllMenuItem,
-      (item) => realClick(item),
-      () => {
-        const c = responseTypeCaret();
-        if (c) realClick(c);
-      }
-    );
-    return true;
   }
 
   function forwardThread() {
@@ -437,6 +421,36 @@ window.CMDK = window.CMDK || {};
     if (el) el.scrollTop = el.scrollHeight;
   }
 
+  // The scrollable region that holds the OPEN CONVERSATION (a long single message
+  // or the stack of message cards). Walk up from a rendered message to the nearest
+  // scrollable ancestor (Gmail's is a div.Tm.aeJ), falling back to the visible
+  // [role="main"]. Same pattern as listScrollContainer, kept separate because the
+  // reading pane and the list pane are different scroll containers.
+  function threadScrollContainer() {
+    const msg = Array.from(document.querySelectorAll('[role="main"] [data-message-id]')).filter(isVisible)[0];
+    let el = msg;
+    while (el && el !== document.body) {
+      const style = getComputedStyle(el);
+      const oy = style.overflowY;
+      if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 1) return el;
+      el = el.parentElement;
+    }
+    return Array.from(document.querySelectorAll('[role="main"]')).filter(isVisible)[0] || null;
+  }
+
+  // Scroll the reading pane (dir: 1 down, -1 up) by a fraction of its height.
+  // Arrow keys use the default step; PageUp/PageDown pass a larger frac. We scroll
+  // the container ourselves rather than relying on native arrow-scroll, because the
+  // reading pane usually isn't the focused element, so the browser wouldn't scroll it.
+  function threadScrollBy(dir, frac = 0.15) {
+    const el = threadScrollContainer();
+    if (!el) return false;
+    const step = Math.max(80, Math.round(el.clientHeight * frac)) * dir;
+    if (typeof el.scrollBy === "function") el.scrollBy({ top: step, behavior: "auto" });
+    else el.scrollTop += step; // environments without scrollBy (e.g. jsdom)
+    return true;
+  }
+
   // Coarse "what am I looking at" classifier, in priority order. Drives the
   // hotkey context gate so bindings only fire where they make sense.
   function getContext() {
@@ -515,6 +529,8 @@ window.CMDK = window.CMDK || {};
     exitReply,
     listScrollTop,
     listScrollBottom,
+    threadScrollContainer,
+    threadScrollBy,
     getContext,
   };
 })();

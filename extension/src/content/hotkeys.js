@@ -233,17 +233,18 @@ window.CMDK = window.CMDK || {};
     if (isEditable(e.target) && !canOverrideEditable(e, ctx)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-    // Thread view: arrows / j / k move a cursor between the conversation's
-    // message cards; Enter starts a reply, ":" expands/collapses the whole
-    // thread; e archives the conversation; r replies.
+    // Thread view: j/k move between message cards. Arrows move the same visible
+    // cursor through message cards plus explicit expansion controls; when there is
+    // nowhere else to move, arrows scroll the reading pane. Enter activates the
+    // focused message/control, so navigation itself never expands the thread.
     if (ctx === "threadView") {
-      if (e.key === "ArrowDown" || e.key === "j") { consume(e); threadnav.move(1); return; }
-      if (e.key === "ArrowUp" || e.key === "k") { consume(e); threadnav.move(-1); return; }
-      if (e.key === "Enter") {
-        consume(e);
-        gmail.replyAllToThread(threadnav.currentCard ? threadnav.currentCard() : document);
-        return;
-      }
+      if (e.key === "j") { consume(e); threadnav.move(1); return; }
+      if (e.key === "k") { consume(e); threadnav.move(-1); return; }
+      if (e.key === "ArrowDown") { consume(e); if (!threadnav.moveArrow(1)) gmail.threadScrollBy(1); return; }
+      if (e.key === "ArrowUp") { consume(e); if (!threadnav.moveArrow(-1)) gmail.threadScrollBy(-1); return; }
+      if (e.key === "PageDown") { consume(e); gmail.threadScrollBy(1, 0.9); return; }
+      if (e.key === "PageUp") { consume(e); gmail.threadScrollBy(-1, 0.9); return; }
+      if (e.key === "Enter") { consume(e); threadnav.activate(); return; }
       if (e.key === ":" || e.key === ";") { consume(e); threadnav.expandAllToggle(); return; }
       if (e.key.toLowerCase() === "e" && !e.shiftKey) { consume(e); gmail.archiveThread(); return; }
       if (e.key.toLowerCase() === "r" && !e.shiftKey) { consume(e); gmail.replyToThread(); return; }

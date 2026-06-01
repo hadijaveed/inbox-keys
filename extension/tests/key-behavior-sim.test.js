@@ -119,25 +119,24 @@ assert.match(
   "Reply-all fallback lookup should stay scoped to the selected message card"
 );
 
-// Reply-all switch (Enter in a thread): the open reply's "Type of response"
-// caret can render OUTSIDE the compose surface, so it must be found document-wide,
-// not scoped to composeSurface (the scoped lookup silently left a single reply).
+// Reply-all clicks Gmail's inline "Reply all" button and must NEVER open the
+// response-type caret menu: that menu popped up over the compose box and fought
+// with typing, and on a two-person thread there is nothing to switch to anyway.
+assert.doesNotMatch(
+  gmailSource,
+  /Type of response/,
+  "Reply-all must not drive the response-type caret menu (it conflicted with typing)"
+);
 assert.match(
   gmailSource,
-  /exactButton\("Type of response"\)/,
-  "Reply-all switch should find the response-type caret document-wide"
+  /function inlineReplyAll/,
+  "Reply-all should click the inline Reply all button"
 );
 
 assert.doesNotMatch(
-  gmailSource,
-  /const alreadyAll = labeledButton/,
-  "Reply-all switch must not early-return on a pre-rendered 'Reply to all' menu item (that no-op left a single reply)"
-);
-
-assert.doesNotMatch(
-  gmailSource,
-  /switchOpenReplyToAll\(\), 360\)/,
-  "Reply-all switch should be a single retrying call, not blind double-fire timers"
+  fs.readFileSync(path.join(root, "src/content/threadnav.js"), "utf8"),
+  /expandFocused/,
+  "Moving the thread cursor must not auto-expand focused messages"
 );
 
 // isEditable must tolerate a non-Element keydown target. A keydown's target can

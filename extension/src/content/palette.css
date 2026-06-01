@@ -300,7 +300,9 @@
 tr.zA.cmdk-cursor > td { background-color: rgba(79, 70, 229, 0.16) !important; }
 tr.zA.cmdk-cursor > td:first-child { box-shadow: inset 4px 0 0 0 #4f46e5 !important; }
 
-/* Message cursor inside an open conversation (the focused message card). */
-[role="main"] [role="listitem"].cmdk-msg-cursor {
-  outline: 2px solid #4f46e5 !important; outline-offset: -2px; border-radius: 8px;
+/* Message cursor inside an open conversation (the focused message card). Just a
+   thin blue bar on the left edge — no outline, no background tint — so navigating
+   up/down the thread is a quiet indicator, not a full highlight. */
+[role="main"] .cmdk-msg-cursor {
+  box-shadow: inset 3px 0 0 0 #1a73e8 !important;
 }
