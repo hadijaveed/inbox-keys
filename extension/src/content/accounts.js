@@ -3,10 +3,10 @@
 // Gmail multi-login lives at /mail/u/<index>/. We learn which email maps to
 // which index as the user visits each account, persist it, and offer fast
 // switching from the palette.
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
-  const { gmail, storage } = CMDK;
+  const { gmail, storage } = OpenSuperhuman;
 
   async function rememberCurrent() {
     const idx = String(gmail.accountIndex());
@@ -28,12 +28,12 @@ window.CMDK = window.CMDK || {};
 
   function switchTo(index) {
     if (index === gmail.accountIndex()) {
-      CMDK.toast("Already on this account");
+      OpenSuperhuman.toast("Already on this account");
       return;
     }
     // Preserve the current section, but drop any open thread id — that id won't
     // exist in the other account, so land on the list view instead.
-    const hash = CMDK.hashutil.parentHash(location.hash || "#inbox");
+    const hash = OpenSuperhuman.hashutil.parentHash(location.hash || "#inbox");
     // Real navigation (trusted) — Gmail's own multi-login switch.
     location.href = `/mail/u/${index}/${hash}`;
   }
@@ -75,42 +75,42 @@ window.CMDK = window.CMDK || {};
     for (let i = 0; i < count; i++) working.push({ index: i, email: names[String(i)] || "" });
 
     cfg = document.createElement("div");
-    cfg.className = "cmdk-overlay cmdk-overlay--open cmdk-cfg-overlay";
+    cfg.className = "open-superhuman-overlay open-superhuman-overlay--open open-superhuman-cfg-overlay";
     cfg.innerHTML = `
-      <div class="cmdk-modal cmdk-cfg" role="dialog" aria-label="Configure accounts">
-        <div class="cmdk-cfg-head">
+      <div class="open-superhuman-modal open-superhuman-cfg" role="dialog" aria-label="Configure accounts">
+        <div class="open-superhuman-cfg-head">
           <div>
-            <div class="cmdk-cfg-title">Accounts</div>
-            <div class="cmdk-cfg-sub">Each row is a signed-in Google account. Order matches Gmail's <code>/u/0</code>, <code>/u/1</code>… Switch with <code>g 0</code>–<code>g 8</code> or from the palette.</div>
+            <div class="open-superhuman-cfg-title">Accounts</div>
+            <div class="open-superhuman-cfg-sub">Each row is a signed-in Google account. Order matches Gmail's <code>/u/0</code>, <code>/u/1</code>… Switch with <code>g 0</code>–<code>g 8</code> or from the palette.</div>
           </div>
-          <button class="cmdk-cfg-x" aria-label="Close">esc</button>
+          <button class="open-superhuman-cfg-x" aria-label="Close">esc</button>
         </div>
-        <div class="cmdk-cfg-list"></div>
-        <button class="cmdk-cfg-add">+ Add account</button>
-        <div class="cmdk-cfg-foot">
-          <span class="cmdk-cfg-hint">Tip: <code>g</code> then the number jumps to that account anywhere in Gmail.</span>
+        <div class="open-superhuman-cfg-list"></div>
+        <button class="open-superhuman-cfg-add">+ Add account</button>
+        <div class="open-superhuman-cfg-foot">
+          <span class="open-superhuman-cfg-hint">Tip: <code>g</code> then the number jumps to that account anywhere in Gmail.</span>
           <span>
-            <button class="cmdk-btn cmdk-btn--ghost cmdk-cfg-cancel">Cancel</button>
-            <button class="cmdk-btn cmdk-cfg-save">Save</button>
+            <button class="open-superhuman-btn open-superhuman-btn--ghost open-superhuman-cfg-cancel">Cancel</button>
+            <button class="open-superhuman-btn open-superhuman-cfg-save">Save</button>
           </span>
         </div>
       </div>`;
     document.documentElement.appendChild(cfg);
 
-    const list = cfg.querySelector(".cmdk-cfg-list");
+    const list = cfg.querySelector(".open-superhuman-cfg-list");
     const cur = gmail.accountIndex();
 
     function renderRows() {
       list.innerHTML = "";
       working.forEach((acc, i) => {
         const row = document.createElement("div");
-        row.className = "cmdk-cfg-row";
+        row.className = "open-superhuman-cfg-row";
         row.innerHTML = `
-          <span class="cmdk-cfg-acct-key">g ${acc.index}${acc.index === cur ? " ·" : ""}</span>
-          <input class="cmdk-cfg-query cmdk-cfg-acct-email" value="${escapeAttr(acc.email)}" placeholder="name@gmail.com (account u/${acc.index})" />
-          <button class="cmdk-cfg-del" title="Remove">✕</button>`;
-        row.querySelector(".cmdk-cfg-acct-email").addEventListener("input", (e) => (working[i].email = e.target.value.trim()));
-        row.querySelector(".cmdk-cfg-del").addEventListener("click", () => {
+          <span class="open-superhuman-cfg-acct-key">g ${acc.index}${acc.index === cur ? " ·" : ""}</span>
+          <input class="open-superhuman-cfg-query open-superhuman-cfg-acct-email" value="${escapeAttr(acc.email)}" placeholder="name@gmail.com (account u/${acc.index})" />
+          <button class="open-superhuman-cfg-del" title="Remove">✕</button>`;
+        row.querySelector(".open-superhuman-cfg-acct-email").addEventListener("input", (e) => (working[i].email = e.target.value.trim()));
+        row.querySelector(".open-superhuman-cfg-del").addEventListener("click", () => {
           working.splice(i, 1);
           working.forEach((a, n) => (a.index = n)); // reindex: rows are positional
           renderRows();
@@ -120,20 +120,20 @@ window.CMDK = window.CMDK || {};
     }
     renderRows();
 
-    cfg.querySelector(".cmdk-cfg-add").addEventListener("click", () => {
+    cfg.querySelector(".open-superhuman-cfg-add").addEventListener("click", () => {
       working.push({ index: working.length, email: "" });
       renderRows();
     });
-    cfg.querySelector(".cmdk-cfg-cancel").addEventListener("click", closeConfig);
-    cfg.querySelector(".cmdk-cfg-x").addEventListener("click", closeConfig);
-    cfg.querySelector(".cmdk-cfg-save").addEventListener("click", async () => {
+    cfg.querySelector(".open-superhuman-cfg-cancel").addEventListener("click", closeConfig);
+    cfg.querySelector(".open-superhuman-cfg-x").addEventListener("click", closeConfig);
+    cfg.querySelector(".open-superhuman-cfg-save").addEventListener("click", async () => {
       const map = {};
       working.forEach((a, i) => {
         if (a.email) map[String(i)] = a.email;
       });
       await storage.set({ accountNames: map });
       closeConfig();
-      CMDK.toast("Accounts saved");
+      OpenSuperhuman.toast("Accounts saved");
     });
     cfg.addEventListener("mousedown", (e) => {
       if (e.target === cfg) closeConfig();
@@ -155,5 +155,5 @@ window.CMDK = window.CMDK || {};
     cfg = null;
   }
 
-  CMDK.accounts = { rememberCurrent, known, switchTo, next, openConfig };
+  OpenSuperhuman.accounts = { rememberCurrent, known, switchTo, next, openConfig };
 })();

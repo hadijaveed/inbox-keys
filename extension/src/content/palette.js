@@ -1,9 +1,9 @@
 // The Cmd+K command palette: an injected overlay with fuzzy search over the
 // command registry.
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
-  const { commands, storage } = CMDK;
+  const { commands, storage } = OpenSuperhuman;
 
   let root, input, list, results, open = false;
   let items = [];
@@ -34,23 +34,23 @@ window.CMDK = window.CMDK || {};
   function build() {
     if (root) return;
     root = document.createElement("div");
-    root.className = "cmdk-overlay";
+    root.className = "open-superhuman-overlay";
     root.innerHTML = `
-      <div class="cmdk-modal" role="dialog" aria-label="Command palette">
-        <div class="cmdk-input-row">
-          <span class="cmdk-prompt">⌘K</span>
-          <input class="cmdk-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" />
+      <div class="open-superhuman-modal" role="dialog" aria-label="Command palette">
+        <div class="open-superhuman-input-row">
+          <span class="open-superhuman-prompt">⌘K</span>
+          <input class="open-superhuman-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" />
         </div>
-        <div class="cmdk-results"></div>
-        <div class="cmdk-footer">
+        <div class="open-superhuman-results"></div>
+        <div class="open-superhuman-footer">
           <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
           <span><kbd>↵</kbd> run</span>
           <span><kbd>esc</kbd> close</span>
         </div>
       </div>`;
     document.documentElement.appendChild(root);
-    input = root.querySelector(".cmdk-input");
-    results = root.querySelector(".cmdk-results");
+    input = root.querySelector(".open-superhuman-input");
+    results = root.querySelector(".open-superhuman-results");
 
     root.addEventListener("mousedown", (e) => {
       if (e.target === root) hide();
@@ -104,25 +104,25 @@ window.CMDK = window.CMDK || {};
 
     results.innerHTML = "";
     if (!items.length) {
-      results.innerHTML = `<div class="cmdk-empty">No matching commands</div>`;
+      results.innerHTML = `<div class="open-superhuman-empty">No matching commands</div>`;
       return;
     }
     let lastGroup = null;
     items.forEach((cmd, i) => {
       if (cmd.group && cmd.group !== lastGroup) {
         const h = document.createElement("div");
-        h.className = "cmdk-group";
+        h.className = "open-superhuman-group";
         h.textContent = cmd.group;
         results.appendChild(h);
         lastGroup = cmd.group;
       }
       const row = document.createElement("div");
-      row.className = "cmdk-row" + (i === active ? " cmdk-row--active" : "");
+      row.className = "open-superhuman-row" + (i === active ? " open-superhuman-row--active" : "");
       row.dataset.i = i;
       const keys = (cmd.keys || []).map((k) => `<kbd>${k}</kbd>`).join("");
       row.innerHTML = `
-        <span class="cmdk-row-title">${escapeHtml(title(cmd))}</span>
-        <span class="cmdk-row-keys">${cmd.hint ? `<span class="cmdk-hint">${escapeHtml(cmd.hint)}</span>` : ""}${keys}</span>`;
+        <span class="open-superhuman-row-title">${escapeHtml(title(cmd))}</span>
+        <span class="open-superhuman-row-keys">${cmd.hint ? `<span class="open-superhuman-hint">${escapeHtml(cmd.hint)}</span>` : ""}${keys}</span>`;
       row.addEventListener("mouseenter", () => {
         if (Date.now() - kbNavAt < 250) return; // keyboard nav wins briefly
         active = i;
@@ -135,10 +135,10 @@ window.CMDK = window.CMDK || {};
   }
 
   function highlight() {
-    results.querySelectorAll(".cmdk-row").forEach((r) => {
-      r.classList.toggle("cmdk-row--active", parseInt(r.dataset.i, 10) === active);
+    results.querySelectorAll(".open-superhuman-row").forEach((r) => {
+      r.classList.toggle("open-superhuman-row--active", parseInt(r.dataset.i, 10) === active);
     });
-    const el = results.querySelector(".cmdk-row--active");
+    const el = results.querySelector(".open-superhuman-row--active");
     if (el) el.scrollIntoView({ block: "nearest" });
   }
 
@@ -151,8 +151,8 @@ window.CMDK = window.CMDK || {};
       try {
         cmd.run();
       } catch (err) {
-        console.error("[CMDK] command failed", cmd.id, err);
-        CMDK.toast("Command failed: " + (cmd.id || "unknown"), { kind: "warn" });
+        console.error("[OpenSuperhuman] command failed", cmd.id, err);
+        OpenSuperhuman.toast("Command failed: " + (cmd.id || "unknown"), { kind: "warn" });
       }
     }, 30);
   }
@@ -160,7 +160,7 @@ window.CMDK = window.CMDK || {};
   function show() {
     build();
     open = true;
-    root.classList.add("cmdk-overlay--open");
+    root.classList.add("open-superhuman-overlay--open");
     input.value = "";
     render();
     setTimeout(() => input.focus(), 0);
@@ -169,7 +169,7 @@ window.CMDK = window.CMDK || {};
   function hide() {
     if (!root) return;
     open = false;
-    root.classList.remove("cmdk-overlay--open");
+    root.classList.remove("open-superhuman-overlay--open");
     input.blur();
   }
 
@@ -181,5 +181,5 @@ window.CMDK = window.CMDK || {};
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  CMDK.palette = { show, hide, toggle, isOpen: () => open, move, confirm };
+  OpenSuperhuman.palette = { show, hide, toggle, isOpen: () => open, move, confirm };
 })();

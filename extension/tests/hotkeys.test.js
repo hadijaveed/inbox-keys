@@ -78,7 +78,7 @@ function replyFixture() {
 function load(html, hash) {
   const w = tryLoadContentScripts(html);
   w.location.hash = hash || "#inbox";
-  w.CMDK.hotkeys.install();
+  w.OpenSuperhuman.hotkeys.install();
   return w;
 }
 
@@ -127,7 +127,7 @@ function wireList(w) {
   const event = press(w, "j", { target: search });
 
   assert.equal(event.defaultPrevented, true, "j from stale search focus should be claimed");
-  assert.equal(rows(w)[1].classList.contains("cmdk-cursor"), true, "j should move the list cursor");
+  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "j should move the list cursor");
 }
 
 // If the user intentionally enters search typing mode, shortcut letters and
@@ -142,7 +142,7 @@ function wireList(w) {
 
   const jEvent = press(w, "j", { target: search });
   assert.equal(jEvent.defaultPrevented, false, "j should remain typeable in search mode");
-  assert.equal(rows(w).some((row) => row.classList.contains("cmdk-cursor")), false, "search typing should not move the cursor");
+  assert.equal(rows(w).some((row) => row.classList.contains("open-superhuman-cursor")), false, "search typing should not move the cursor");
 
   const enterEvent = press(w, "Enter", { target: search });
   assert.equal(enterEvent.defaultPrevented, false, "Enter should submit Gmail search, not open a row");
@@ -202,7 +202,7 @@ function wireList(w) {
   const event = press(w, "j", { target: body });
 
   assert.equal(event.defaultPrevented, false, "typing in compose should not be claimed");
-  assert.equal(rows(w).some((row) => row.classList.contains("cmdk-cursor")), false, "compose typing should not move the list cursor");
+  assert.equal(rows(w).some((row) => row.classList.contains("open-superhuman-cursor")), false, "compose typing should not move the list cursor");
 }
 
 // Thread navigation only moves the cursor; Enter on a collapsed focused message
@@ -366,7 +366,7 @@ function wireList(w) {
     clickedBack = true;
   });
 
-  assert.equal(w.CMDK.gmail.getContext(), "threadView", "a closed (aria-hidden) preview must not keep us in attachmentPreview");
+  assert.equal(w.OpenSuperhuman.gmail.getContext(), "threadView", "a closed (aria-hidden) preview must not keep us in attachmentPreview");
 
   const event = press(w, "Escape", { target: w.document.body });
 
@@ -383,7 +383,7 @@ function wireList(w) {
   const event = press(w, "j", { target: w.document.body });
 
   assert.equal(event.defaultPrevented, false, "j should not be claimed while a Gmail menu is open");
-  assert.equal(rows(w).some((row) => row.classList.contains("cmdk-cursor")), false, "menus should block list movement");
+  assert.equal(rows(w).some((row) => row.classList.contains("open-superhuman-cursor")), false, "menus should block list movement");
 }
 
 // Shift+Arrow selection is a RANGE anchored where it began: Shift+Down grows it,
@@ -593,7 +593,7 @@ function wireInlineActions(w, opts = {}) {
   // Cursor starts on the latest (second) card; ArrowUp moves the indicator up to the first.
   const up = press(w, "ArrowUp", { target: w.document.body });
   assert.equal(up.defaultPrevented, true, "ArrowUp is claimed in thread view");
-  assert.equal(cardEls[0].classList.contains("cmdk-msg-cursor"), true, "ArrowUp moves the indicator to the first card");
+  assert.equal(cardEls[0].classList.contains("open-superhuman-msg-cursor"), true, "ArrowUp moves the indicator to the first card");
   assert.deepEqual(headerClicks, [], "ArrowUp must not expand/collapse while moving the cursor");
   assert.equal(scrolled.length, 0, "moving the indicator between messages must not scroll");
 
@@ -621,7 +621,7 @@ function wireInlineActions(w, opts = {}) {
 
   press(w, "ArrowDown", { target: w.document.body });
 
-  assert.equal(expandAll.classList.contains("cmdk-msg-cursor"), false, "ArrowDown should not focus the global Expand all control");
+  assert.equal(expandAll.classList.contains("open-superhuman-msg-cursor"), false, "ArrowDown should not focus the global Expand all control");
   assert.ok(scrolled.length === 1 && scrolled[0] > 0, "ArrowDown at the latest message should scroll instead");
 }
 
@@ -641,13 +641,13 @@ function wireInlineActions(w, opts = {}) {
   });
 
   press(w, "ArrowUp", { target: w.document.body });
-  assert.equal(expander.classList.contains("cmdk-msg-cursor"), true, "ArrowUp should stop on an expansion opportunity");
+  assert.equal(expander.classList.contains("open-superhuman-msg-cursor"), true, "ArrowUp should stop on an expansion opportunity");
 
   press(w, "o", { target: w.document.body });
   assert.equal(w.__expandedOpportunity, true, "o should activate the focused expansion opportunity");
 
   press(w, "ArrowDown", { target: w.document.body });
-  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("cmdk-msg-cursor"), true, "ArrowDown should continue to the next message card after an expansion control");
+  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("open-superhuman-msg-cursor"), true, "ArrowDown should continue to the next message card after an expansion control");
 }
 
 // A single-message thread (a long newsletter): there's no other card to move to, so
@@ -669,7 +669,7 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(down.defaultPrevented, true, "ArrowDown is claimed in a single-message thread");
   assert.ok(scrolled.length === 1 && scrolled[0] > 0, "ArrowDown scrolls a long single message (nothing to navigate to)");
   assert.equal(
-    Array.from(w.document.querySelectorAll('[role="listitem"]')).some((c) => c.classList.contains("cmdk-msg-cursor")),
+    Array.from(w.document.querySelectorAll('[role="listitem"]')).some((c) => c.classList.contains("open-superhuman-msg-cursor")),
     false,
     "a single-message thread has no other card to move the indicator to"
   );
@@ -689,7 +689,7 @@ function wireInlineActions(w, opts = {}) {
   press(w, "ArrowUp", { target: w.document.body }); // c -> b
   press(w, "ArrowUp", { target: w.document.body }); // b -> a
 
-  assert.equal(w.document.querySelector('[data-card="a"]').classList.contains("cmdk-msg-cursor"), true, "ArrowUp should walk the message cursor up to the first card");
+  assert.equal(w.document.querySelector('[data-card="a"]').classList.contains("open-superhuman-msg-cursor"), true, "ArrowUp should walk the message cursor up to the first card");
 }
 
 // Cmd+K toggles the command palette; Escape closes it. (The palette getting stuck
@@ -699,11 +699,11 @@ function wireInlineActions(w, opts = {}) {
 
   const open = press(w, "k", { target: w.document.body, metaKey: true });
   assert.equal(open.defaultPrevented, true, "Cmd+K should be claimed");
-  assert.equal(w.CMDK.palette.isOpen(), true, "Cmd+K opens the palette");
+  assert.equal(w.OpenSuperhuman.palette.isOpen(), true, "Cmd+K opens the palette");
 
   const close = press(w, "Escape", { target: w.document.body });
   assert.equal(close.defaultPrevented, true, "Escape should be claimed while the palette is open");
-  assert.equal(w.CMDK.palette.isOpen(), false, "Escape closes the palette");
+  assert.equal(w.OpenSuperhuman.palette.isOpen(), false, "Escape closes the palette");
 }
 
 // # trashes the focused list row, including the shifted punctuation form most
@@ -944,7 +944,7 @@ function wireInlineActions(w, opts = {}) {
   }
 
   assert.equal(threw, null, "a keydown targeted at the document must not throw");
-  assert.equal(rows(w)[1].classList.contains("cmdk-cursor"), true, "the shortcut still runs after a non-Element target");
+  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "the shortcut still runs after a non-Element target");
 }
 
 console.log("hotkey integration tests passed");

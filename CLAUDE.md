@@ -19,7 +19,7 @@ Corollary for navigation: drive Gmail's hash router directly (`location.hash = "
 
 ## Architecture
 
-Chrome MV3. Content scripts share a single `window.CMDK` namespace and load in a fixed order (see `manifest.json` `content_scripts`):
+Chrome MV3. Content scripts share a single `window.OpenSuperhuman` namespace and load in a fixed order (see `manifest.json` `content_scripts`):
 
 ```
 src/shared/hashutil.js    pure hash helpers (thread detection, parent hash). Unit-tested in Node.
@@ -46,7 +46,7 @@ src/background/           MV3 service worker (message relay).
 
 Where things live: keys and contexts are declared once in `keymap.js`; `commands.js` joins each catalog id to its `run()`. To add or change a binding you usually touch both. The palette is rebuilt every open so key overrides, tabs, and accounts stay current.
 
-Isolated world caveat: content scripts run in the ISOLATED world, so `window.CMDK` is invisible to page main-world JS. Browser-automation tools and the devtools console default to the main world and will see `CMDK` as undefined. DOM and `location.hash` inspection are world-independent, so verify live state through those. In Chrome devtools you can switch the console context to the extension content script to reach `CMDK`.
+Isolated world caveat: content scripts run in the ISOLATED world, so `window.OpenSuperhuman` is invisible to page main-world JS. Browser-automation tools and the devtools console default to the main world and will see `OpenSuperhuman` as undefined. DOM and `location.hash` inspection are world-independent, so verify live state through those. In Chrome devtools you can switch the console context to the extension content script to reach `OpenSuperhuman`.
 
 ## The context classifier (gmail.getContext)
 
@@ -166,9 +166,9 @@ Most plumbing already exists in `tabs.js` (bar, hash navigation, active detectio
 
 A periodic real-Gmail smoke test would catch Gmail-side DOM renames that the jsdom fixtures cannot. Good future task.
 
-### 3. Optional internal rename
+### 3. Internal rename (done)
 
-User-facing name is Open Superhuman, but the internal namespace is still `window.CMDK` and CSS classes use a `cmdk-` prefix (`cmdk-tab`, `cmdk-overlay`, `cmdk-cursor`). Left as-is because they are implementation details and renaming touches every file plus tests. If done, do it as one mechanical pass with `npm test` as the safety net; note `cmdk-cursor` and a few class strings are asserted in tests, so update those too.
+The internal namespace was renamed from the old `CMDK` carryover to `window.OpenSuperhuman`, and the CSS prefix from `cmdk-` to `open-superhuman-` (e.g. `open-superhuman-tab`, `open-superhuman-overlay`, `open-superhuman-cursor`), in one mechanical pass across every source and test file with `npm test` green. The runtime message types are now `open-superhuman:...` and the synthetic-event tag is `__openSuperhumanSynthetic`. The user-facing `Cmd+K` / `⌘K` shortcut text was deliberately left untouched (it is the actual keystroke, not the old name).
 
 ## Conventions
 

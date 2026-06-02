@@ -26,14 +26,14 @@ TOGGLES.forEach((k) =>
 );
 
 function relay(payload) {
-  chrome.runtime.sendMessage({ type: "cmdk:relay", payload }, (res) => {
+  chrome.runtime.sendMessage({ type: "open-superhuman:relay", payload }, (res) => {
     if (res && !res.ok) $("note").textContent = "Open a Gmail tab first.";
     else window.close();
   });
 }
 
-$("open-palette").addEventListener("click", () => relay({ type: "cmdk:open-palette" }));
-$("open-tabs").addEventListener("click", () => relay({ type: "cmdk:open-tabs-config" }));
+$("open-palette").addEventListener("click", () => relay({ type: "open-superhuman:open-palette" }));
+$("open-tabs").addEventListener("click", () => relay({ type: "open-superhuman:open-tabs-config" }));
 $("open-options").addEventListener("click", (e) => {
   e.preventDefault();
   chrome.runtime.openOptionsPage();

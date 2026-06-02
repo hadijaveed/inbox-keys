@@ -1,5 +1,5 @@
 // Namespaced globals shared across the content scripts.
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
   const DEFAULTS = {
@@ -51,6 +51,6 @@ window.CMDK = window.CMDK || {};
     },
   };
 
-  CMDK.storage = storage;
-  CMDK.DEFAULTS = DEFAULTS;
+  OpenSuperhuman.storage = storage;
+  OpenSuperhuman.DEFAULTS = DEFAULTS;
 })();

@@ -7,10 +7,10 @@
 // in the capture phase) so Gmail never double-handles it. Synthetic keys that we
 // dispatch via gmail.sendKey are tagged and ignored on re-entry, killing the
 // recursion / double-fire loop.
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
-  const { commands, palette, storage, gmail, calendar, listnav, threadnav } = CMDK;
+  const { commands, palette, storage, gmail, calendar, listnav, threadnav } = OpenSuperhuman;
 
   let chordPrefix = null;
   let chordTimer = null;
@@ -136,7 +136,7 @@ window.CMDK = window.CMDK || {};
     if (chordPrefix === "g" && /^[0-8]$/.test(key)) {
       clearChord();
       consume(e);
-      CMDK.accounts.switchTo(parseInt(key, 10));
+      OpenSuperhuman.accounts.switchTo(parseInt(key, 10));
       return true;
     }
 
@@ -178,7 +178,7 @@ window.CMDK = window.CMDK || {};
 
     // Ignore the synthetic events we dispatch via gmail.sendKey (capture phase
     // re-entry) so native fallbacks don't recurse back into us.
-    if (e.__cmdkSynthetic || (gmail.isDispatchingSynthetic && gmail.isDispatchingSynthetic())) return;
+    if (e.__openSuperhumanSynthetic || (gmail.isDispatchingSynthetic && gmail.isDispatchingSynthetic())) return;
 
     // Palette toggle works everywhere (even while typing).
     if (matchesModK(e)) {
@@ -290,8 +290,8 @@ window.CMDK = window.CMDK || {};
     // compose / thread / search / editable.
     if (e.key === "Tab" && ctx === "inboxList") {
       consume(e);
-      if (e.shiftKey) CMDK.tabs.prev();
-      else CMDK.tabs.next();
+      if (e.shiftKey) OpenSuperhuman.tabs.prev();
+      else OpenSuperhuman.tabs.next();
       return;
     }
 
@@ -377,5 +377,5 @@ window.CMDK = window.CMDK || {};
     searchEditing = true;
   }
 
-  CMDK.hotkeys = { install, armSearchEditing };
+  OpenSuperhuman.hotkeys = { install, armSearchEditing };
 })();

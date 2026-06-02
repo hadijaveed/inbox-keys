@@ -1,11 +1,11 @@
 // The command registry: every action the palette and hotkeys can run.
 // Each command: { id, title, group, hint?, keys, contexts, run() }.
-// `keys` is derived from CMDK_KEYMAP.keysFor(id, keyOverrides); "g i" is a chord
+// `keys` is derived from OpenSuperhuman_KEYMAP.keysFor(id, keyOverrides); "g i" is a chord
 // (press g then i). `contexts` comes from the shared catalog.
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
-  const { gmail, accounts, calendar, tabs, storage } = CMDK;
+  const { gmail, accounts, calendar, tabs, storage } = OpenSuperhuman;
 
   function nav(hash) {
     return () => gmail.setHash(hash);
@@ -13,14 +13,14 @@ window.CMDK = window.CMDK || {};
 
   // Pull keys + contexts for a catalog command id, applying user overrides.
   function entry(id) {
-    return (CMDK_KEYMAP.commands || []).find((c) => c.id === id) || null;
+    return (OpenSuperhuman_KEYMAP.commands || []).find((c) => c.id === id) || null;
   }
   function keysFor(id) {
-    return CMDK_KEYMAP.keysFor(id, storage.get("keyOverrides") || {});
+    return OpenSuperhuman_KEYMAP.keysFor(id, storage.get("keyOverrides") || {});
   }
   function contextsFor(id) {
     const e = entry(id);
-    return e ? e.contexts : CMDK_KEYMAP.DEFAULT_CONTEXTS;
+    return e ? e.contexts : OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS;
   }
   // Build a base command from a catalog id: catalog supplies title/group/keys/
   // contexts; the caller supplies run() and an optional hint override.
@@ -38,15 +38,15 @@ window.CMDK = window.CMDK || {};
   }
 
   function listSelectionAction(action) {
-    if (gmail.getContext() === "inboxList" && CMDK.listnav && CMDK.listnav.withSelection) {
-      return CMDK.listnav.withSelection(action);
+    if (gmail.getContext() === "inboxList" && OpenSuperhuman.listnav && OpenSuperhuman.listnav.withSelection) {
+      return OpenSuperhuman.listnav.withSelection(action);
     }
     return action();
   }
 
   function listTemporarySelectionAction(action) {
-    if (gmail.getContext() === "inboxList" && CMDK.listnav && CMDK.listnav.withTemporarySelection) {
-      return CMDK.listnav.withTemporarySelection(action);
+    if (gmail.getContext() === "inboxList" && OpenSuperhuman.listnav && OpenSuperhuman.listnav.withTemporarySelection) {
+      return OpenSuperhuman.listnav.withTemporarySelection(action);
     }
     return action();
   }
@@ -57,22 +57,22 @@ window.CMDK = window.CMDK || {};
       // Compose / messaging
       cmd("compose", () => gmail.compose()),
       cmd("reply", () => gmail.replyToThread()),
-      cmd("reply-all", () => gmail.replyAllToThread(CMDK.threadnav.currentCard() || document)),
+      cmd("reply-all", () => gmail.replyAllToThread(OpenSuperhuman.threadnav.currentCard() || document)),
       cmd("forward", () => gmail.forwardThread()),
-      cmd("open-link-or-attachment", () => gmail.openLinkOrAttachment(CMDK.threadnav.currentCard() || document)),
+      cmd("open-link-or-attachment", () => gmail.openLinkOrAttachment(OpenSuperhuman.threadnav.currentCard() || document)),
       cmd("attach-file", () => gmail.attachFile()),
 
       // Triage (archive is context-aware: open thread vs. selected/cursor rows)
-      cmd("archive", () => (gmail.getContext() === "threadView" ? gmail.archiveThread() : CMDK.listnav.archive())),
+      cmd("archive", () => (gmail.getContext() === "threadView" ? gmail.archiveThread() : OpenSuperhuman.listnav.archive())),
       cmd("mark-not-done", () => listSelectionAction(() => gmail.markNotDone())),
-      cmd("delete", () => (gmail.getContext() === "threadView" ? gmail.action(["Delete"], "#") : CMDK.listnav.trash())),
+      cmd("delete", () => (gmail.getContext() === "threadView" ? gmail.action(["Delete"], "#") : OpenSuperhuman.listnav.trash())),
       cmd("undo", () => gmail.undo()),
-      cmd("mark-read-unread", () => (gmail.getContext() === "inboxList" ? CMDK.listnav.markReadUnread() : gmail.markReadUnread())),
+      cmd("mark-read-unread", () => (gmail.getContext() === "inboxList" ? OpenSuperhuman.listnav.markReadUnread() : gmail.markReadUnread())),
       cmd("mark-read", () => gmail.action(["Mark as read"])),
       cmd("mark-unread", () => gmail.action(["Mark as unread"])),
       cmd("snooze", () => listSelectionAction(() => gmail.snooze())),
       cmd("report-spam", () => gmail.action(["Report spam"], "!")),
-      cmd("star", () => (gmail.getContext() === "threadView" ? gmail.toggleStar(CMDK.threadnav.currentCard() || document) : CMDK.listnav.toggleStar())),
+      cmd("star", () => (gmail.getContext() === "threadView" ? gmail.toggleStar(OpenSuperhuman.threadnav.currentCard() || document) : OpenSuperhuman.listnav.toggleStar())),
       cmd("mute", () => listSelectionAction(() => gmail.mute())),
       cmd("unsubscribe", () => gmail.unsubscribe()),
       cmd("label", () => listSelectionAction(() => gmail.openLabelMenu())),
@@ -95,8 +95,8 @@ window.CMDK = window.CMDK || {};
       // List scrolling + thread/tab navigation (engine helpers)
       cmd("go-top", () => gmail.listScrollTop()),
       cmd("go-bottom", () => gmail.listScrollBottom()),
-      cmd("expand-message", () => CMDK.threadnav.toggleFocused()),
-      cmd("expand-all", () => CMDK.threadnav.expandAllToggle()),
+      cmd("expand-message", () => OpenSuperhuman.threadnav.toggleFocused()),
+      cmd("expand-all", () => OpenSuperhuman.threadnav.expandAllToggle()),
       cmd("next-tab", () => tabs.next()),
       cmd("prev-tab", () => tabs.prev()),
       cmd("back-to-list", () => gmail.back()),
@@ -112,7 +112,7 @@ window.CMDK = window.CMDK || {};
       cmd("search", () => {
         const box = document.querySelector('input[aria-label="Search mail"], input[name="q"]');
         if (box) {
-          if (CMDK.hotkeys && CMDK.hotkeys.armSearchEditing) CMDK.hotkeys.armSearchEditing();
+          if (OpenSuperhuman.hotkeys && OpenSuperhuman.hotkeys.armSearchEditing) OpenSuperhuman.hotkeys.armSearchEditing();
           box.focus();
         } else {
           gmail.setHash("search/");
@@ -130,7 +130,7 @@ window.CMDK = window.CMDK || {};
       hint: tab.type === "inbox" ? "Inbox" : tab.query,
       group: "Tabs",
       keys: [],
-      contexts: CMDK_KEYMAP.DEFAULT_CONTEXTS,
+      contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
       run: () => tabs.navigate(tab),
     }));
     cmds.push({
@@ -138,7 +138,7 @@ window.CMDK = window.CMDK || {};
       title: "Configure split inbox tabs…",
       group: "Tabs",
       keys: [],
-      contexts: CMDK_KEYMAP.DEFAULT_CONTEXTS,
+      contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
       run: () => tabs.openConfig(),
     });
     return cmds;
@@ -167,7 +167,7 @@ window.CMDK = window.CMDK || {};
         hint: index === cur ? "current" : `g ${index}`,
         group: "Accounts",
         keys: [`g ${index}`],
-        contexts: CMDK_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
         run: () => accounts.switchTo(index),
       };
     });
@@ -176,7 +176,7 @@ window.CMDK = window.CMDK || {};
       title: "Configure accounts…",
       group: "Accounts",
       keys: [],
-      contexts: CMDK_KEYMAP.DEFAULT_CONTEXTS,
+      contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
       run: () => accounts.openConfig(),
     });
     return rows;
@@ -202,7 +202,7 @@ window.CMDK = window.CMDK || {};
   }
 
   // `base` is kept as a getter so callers always see current overrides applied.
-  CMDK.commands = {
+  OpenSuperhuman.commands = {
     all,
     register,
     byKeys,

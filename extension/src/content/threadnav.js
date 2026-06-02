@@ -7,11 +7,11 @@
 // message first, then replies once that message is expanded. "o" always toggles
 // the focused card or expansion control. All driven by real clicks — Gmail
 // ignores synthetic keys.
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
-  const { gmail } = CMDK;
-  const CURSOR_CLASS = "cmdk-msg-cursor";
+  const { gmail } = OpenSuperhuman;
+  const CURSOR_CLASS = "open-superhuman-msg-cursor";
   let cursorEl = null;
 
   function mainEl() {
@@ -212,5 +212,5 @@ window.CMDK = window.CMDK || {};
 
   window.addEventListener("hashchange", reset);
 
-  CMDK.threadnav = { move, moveArrow, toggleFocused, replyAllFocused, activateFocused, toggle, expandAllToggle, currentCard, reset };
+  OpenSuperhuman.threadnav = { move, moveArrow, toggleFocused, replyAllFocused, activateFocused, toggle, expandAllToggle, currentCard, reset };
 })();

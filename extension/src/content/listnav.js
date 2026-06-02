@@ -6,11 +6,11 @@
 // the rows' real controls: the [role="checkbox"], the per-row hover buttons,
 // and the toolbar (which acts on the checked set). All clicks go through
 // gmail.realClick (full pointer+mouse gesture) so Gmail actually reacts.
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
-  const { gmail } = CMDK;
-  const CURSOR_CLASS = "cmdk-cursor";
+  const { gmail } = OpenSuperhuman;
+  const CURSOR_CLASS = "open-superhuman-cursor";
   let cursor = -1;
   let anchor = -1; // shift-select range anchor; -1 means no shift session active
 
@@ -309,5 +309,5 @@ window.CMDK = window.CMDK || {};
   // A fresh list (navigation, account switch) should start the cursor over.
   window.addEventListener("hashchange", reset);
 
-  CMDK.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, withSelection, withTemporarySelection, reset };
+  OpenSuperhuman.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, withSelection, withTemporarySelection, reset };
 })();

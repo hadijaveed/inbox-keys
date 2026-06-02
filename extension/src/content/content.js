@@ -1,7 +1,7 @@
 // Bootstrap: load settings, then wire up the palette, hotkeys, accounts, and
 // the split-inbox tab bar once Gmail's app is ready.
 (async function () {
-  const { storage, hotkeys, accounts, palette, tabs } = CMDK;
+  const { storage, hotkeys, accounts, palette, tabs } = OpenSuperhuman;
 
   await storage.load();
 
@@ -26,8 +26,8 @@
 
   // Let the popup/background drive the content script via messages.
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg && msg.type === "cmdk:open-palette") palette.show();
-    if (msg && msg.type === "cmdk:open-tabs-config") tabs.openConfig();
+    if (msg && msg.type === "open-superhuman:open-palette") palette.show();
+    if (msg && msg.type === "open-superhuman:open-tabs-config") tabs.openConfig();
   });
 
   console.log("[Open Superhuman] ready on", location.host);

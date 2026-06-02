@@ -1,5 +1,5 @@
 // Lightweight, self-contained toast notifications.
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
   let container = null;
@@ -7,7 +7,7 @@ window.CMDK = window.CMDK || {};
   function ensure() {
     if (container) return container;
     container = document.createElement("div");
-    container.className = "cmdk-toast-stack";
+    container.className = "open-superhuman-toast-stack";
     document.documentElement.appendChild(container);
     return container;
   }
@@ -15,12 +15,12 @@ window.CMDK = window.CMDK || {};
   function toast(message, opts = {}) {
     const { timeout = 2600, kind = "info" } = opts;
     const el = document.createElement("div");
-    el.className = `cmdk-toast cmdk-toast--${kind}`;
+    el.className = `open-superhuman-toast open-superhuman-toast--${kind}`;
     el.textContent = message;
     ensure().appendChild(el);
-    requestAnimationFrame(() => el.classList.add("cmdk-toast--in"));
+    requestAnimationFrame(() => el.classList.add("open-superhuman-toast--in"));
     const remove = () => {
-      el.classList.remove("cmdk-toast--in");
+      el.classList.remove("open-superhuman-toast--in");
       setTimeout(() => el.remove(), 200);
     };
     if (timeout) setTimeout(remove, timeout);
@@ -28,5 +28,5 @@ window.CMDK = window.CMDK || {};
     return remove;
   }
 
-  CMDK.toast = toast;
+  OpenSuperhuman.toast = toast;
 })();

@@ -9,10 +9,10 @@
 // A gear at the end opens an in-Gmail config modal to add/rename/remove tabs,
 // with one-click suggestions. Everything persists in chrome.storage and the bar
 // re-injects itself as Gmail re-renders (MutationObserver).
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
-  const { storage, gmail } = CMDK;
+  const { storage, gmail } = OpenSuperhuman;
 
   let bar = null;
   let observer = null;
@@ -105,11 +105,11 @@ window.CMDK = window.CMDK || {};
 
   function build() {
     const el = document.createElement("div");
-    el.id = "cmdk-tab-bar";
-    el.className = "cmdk-tabbar";
+    el.id = "open-superhuman-tab-bar";
+    el.className = "open-superhuman-tabbar";
     tabs().forEach((tab) => {
       const b = document.createElement("button");
-      b.className = "cmdk-tab";
+      b.className = "open-superhuman-tab";
       b.dataset.id = tab.id;
       b.textContent = tab.name;
       b.title = tab.type === "inbox" ? "Inbox" : tab.query;
@@ -117,9 +117,9 @@ window.CMDK = window.CMDK || {};
       el.appendChild(b);
     });
     const gear = document.createElement("button");
-    gear.className = "cmdk-tab-gear";
-    gear.title = "Configure CMDK Tabs";
-    gear.setAttribute("aria-label", "Configure CMDK Tabs");
+    gear.className = "open-superhuman-tab-gear";
+    gear.title = "Configure OpenSuperhuman Tabs";
+    gear.setAttribute("aria-label", "Configure OpenSuperhuman Tabs");
     gear.innerHTML = GEAR_SVG;
     gear.addEventListener("click", openConfig);
     el.appendChild(gear);
@@ -133,8 +133,8 @@ window.CMDK = window.CMDK || {};
   function updateActive() {
     if (!bar) return;
     const list = tabs();
-    bar.querySelectorAll(".cmdk-tab").forEach((b, i) => {
-      b.classList.toggle("cmdk-tab--active", list[i] ? isActive(list[i]) : false);
+    bar.querySelectorAll(".open-superhuman-tab").forEach((b, i) => {
+      b.classList.toggle("open-superhuman-tab--active", list[i] ? isActive(list[i]) : false);
     });
   }
 
@@ -169,48 +169,48 @@ window.CMDK = window.CMDK || {};
     const working = tabs().map((t) => ({ ...t }));
 
     cfg = document.createElement("div");
-    cfg.className = "cmdk-overlay cmdk-overlay--open cmdk-cfg-overlay";
+    cfg.className = "open-superhuman-overlay open-superhuman-overlay--open open-superhuman-cfg-overlay";
     cfg.innerHTML = `
-      <div class="cmdk-modal cmdk-cfg" role="dialog" aria-label="Configure tabs">
-        <div class="cmdk-cfg-head">
+      <div class="open-superhuman-modal open-superhuman-cfg" role="dialog" aria-label="Configure tabs">
+        <div class="open-superhuman-cfg-head">
           <div>
-            <div class="cmdk-cfg-title">Split inbox tabs</div>
-            <div class="cmdk-cfg-sub">Build a focused Gmail workspace. Keep 4-6 tabs for daily triage, then use search operators like <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>.</div>
+            <div class="open-superhuman-cfg-title">Split inbox tabs</div>
+            <div class="open-superhuman-cfg-sub">Build a focused Gmail workspace. Keep 4-6 tabs for daily triage, then use search operators like <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>.</div>
           </div>
-          <button class="cmdk-cfg-x" aria-label="Close">esc</button>
+          <button class="open-superhuman-cfg-x" aria-label="Close">esc</button>
         </div>
-        <div class="cmdk-cfg-list"></div>
-        <div class="cmdk-cfg-actions">
-          <button class="cmdk-cfg-add">+ Add tab</button>
-          <button class="cmdk-cfg-reset">Reset defaults</button>
+        <div class="open-superhuman-cfg-list"></div>
+        <div class="open-superhuman-cfg-actions">
+          <button class="open-superhuman-cfg-add">+ Add tab</button>
+          <button class="open-superhuman-cfg-reset">Reset defaults</button>
         </div>
-        <div class="cmdk-cfg-suggest-label">Presets</div>
-        <div class="cmdk-cfg-suggest"></div>
-        <div class="cmdk-cfg-foot">
-          <span class="cmdk-cfg-hint">Good defaults: Inbox, Unread, Important, Starred, Attachments.</span>
+        <div class="open-superhuman-cfg-suggest-label">Presets</div>
+        <div class="open-superhuman-cfg-suggest"></div>
+        <div class="open-superhuman-cfg-foot">
+          <span class="open-superhuman-cfg-hint">Good defaults: Inbox, Unread, Important, Starred, Attachments.</span>
           <span>
-            <button class="cmdk-btn cmdk-btn--ghost cmdk-cfg-cancel">Cancel</button>
-            <button class="cmdk-btn cmdk-cfg-save">Save</button>
+            <button class="open-superhuman-btn open-superhuman-btn--ghost open-superhuman-cfg-cancel">Cancel</button>
+            <button class="open-superhuman-btn open-superhuman-cfg-save">Save</button>
           </span>
         </div>
       </div>`;
     document.documentElement.appendChild(cfg);
 
-    const list = cfg.querySelector(".cmdk-cfg-list");
-    const suggestWrap = cfg.querySelector(".cmdk-cfg-suggest");
+    const list = cfg.querySelector(".open-superhuman-cfg-list");
+    const suggestWrap = cfg.querySelector(".open-superhuman-cfg-suggest");
 
     function rowFor(tab, i) {
       const row = document.createElement("div");
-      row.className = "cmdk-cfg-row";
+      row.className = "open-superhuman-cfg-row";
       const isInbox = tab.type === "inbox";
       row.innerHTML = `
-        <input class="cmdk-cfg-name" value="${escapeAttr(tab.name)}" placeholder="Tab name" />
-        <input class="cmdk-cfg-query" value="${escapeAttr(tab.query || "")}" placeholder="${isInbox ? "Inbox (the default view)" : "is:unread, label:Clients, from:boss@…"}" ${isInbox ? "disabled" : ""} />
-        <button class="cmdk-cfg-del" title="Remove" ${isInbox ? "disabled" : ""}>✕</button>`;
-      row.querySelector(".cmdk-cfg-name").addEventListener("input", (e) => (working[i].name = e.target.value));
+        <input class="open-superhuman-cfg-name" value="${escapeAttr(tab.name)}" placeholder="Tab name" />
+        <input class="open-superhuman-cfg-query" value="${escapeAttr(tab.query || "")}" placeholder="${isInbox ? "Inbox (the default view)" : "is:unread, label:Clients, from:boss@…"}" ${isInbox ? "disabled" : ""} />
+        <button class="open-superhuman-cfg-del" title="Remove" ${isInbox ? "disabled" : ""}>✕</button>`;
+      row.querySelector(".open-superhuman-cfg-name").addEventListener("input", (e) => (working[i].name = e.target.value));
       if (!isInbox) {
-        row.querySelector(".cmdk-cfg-query").addEventListener("input", (e) => (working[i].query = e.target.value));
-        row.querySelector(".cmdk-cfg-del").addEventListener("click", () => {
+        row.querySelector(".open-superhuman-cfg-query").addEventListener("input", (e) => (working[i].query = e.target.value));
+        row.querySelector(".open-superhuman-cfg-del").addEventListener("click", () => {
           working.splice(i, 1);
           renderRows();
         });
@@ -228,7 +228,7 @@ window.CMDK = window.CMDK || {};
       const existing = working.findIndex((tab) => tab.type === "search" && norm(tab.query) === norm(query));
       if (existing >= 0) {
         focusRow(existing);
-        CMDK.toast("Tab already added");
+        OpenSuperhuman.toast("Tab already added");
         return;
       }
       working.push({ id: "t" + Date.now() + Math.floor(Math.random() * 1000), name: name || "New tab", type: "search", query: query || "" });
@@ -239,24 +239,24 @@ window.CMDK = window.CMDK || {};
       suggestWrap.innerHTML = "";
       SUGGESTION_GROUPS.forEach((group) => {
         const box = document.createElement("div");
-        box.className = "cmdk-cfg-suggest-group";
+        box.className = "open-superhuman-cfg-suggest-group";
         const title = document.createElement("div");
-        title.className = "cmdk-cfg-suggest-title";
+        title.className = "open-superhuman-cfg-suggest-title";
         title.textContent = group.title;
         box.appendChild(title);
         const chips = document.createElement("div");
-        chips.className = "cmdk-cfg-suggest-chips";
+        chips.className = "open-superhuman-cfg-suggest-chips";
         group.items.forEach((s) => {
           const chip = document.createElement("button");
           const exists = working.some((tab) => tab.type === "search" && norm(tab.query) === norm(s.query));
-          chip.className = "cmdk-cfg-chip" + (exists ? " cmdk-cfg-chip--added" : "");
+          chip.className = "open-superhuman-cfg-chip" + (exists ? " open-superhuman-cfg-chip--added" : "");
           chip.title = s.query;
           chip.disabled = exists;
           const main = document.createElement("span");
-          main.className = "cmdk-cfg-chip-main";
+          main.className = "open-superhuman-cfg-chip-main";
           main.textContent = s.name;
           const note = document.createElement("span");
-          note.className = "cmdk-cfg-chip-note";
+          note.className = "open-superhuman-cfg-chip-note";
           note.textContent = exists ? "Added" : s.note;
           chip.appendChild(main);
           chip.appendChild(note);
@@ -269,13 +269,13 @@ window.CMDK = window.CMDK || {};
     }
 
     function focusRow(i) {
-      const rows = Array.from(list.querySelectorAll(".cmdk-cfg-row"));
+      const rows = Array.from(list.querySelectorAll(".open-superhuman-cfg-row"));
       const row = rows[i];
       if (!row) return;
-      row.classList.add("cmdk-cfg-row--pulse");
-      const input = row.querySelector(".cmdk-cfg-name");
+      row.classList.add("open-superhuman-cfg-row--pulse");
+      const input = row.querySelector(".open-superhuman-cfg-name");
       if (input) input.focus();
-      setTimeout(() => row.classList.remove("cmdk-cfg-row--pulse"), 700);
+      setTimeout(() => row.classList.remove("open-superhuman-cfg-row--pulse"), 700);
     }
 
     function norm(value) {
@@ -284,21 +284,21 @@ window.CMDK = window.CMDK || {};
 
     renderRows();
 
-    cfg.querySelector(".cmdk-cfg-add").addEventListener("click", () => addTab("", ""));
-    cfg.querySelector(".cmdk-cfg-reset").addEventListener("click", () => {
-      working.splice(0, working.length, ...CMDK.DEFAULTS.tabs.map((t) => ({ ...t })));
+    cfg.querySelector(".open-superhuman-cfg-add").addEventListener("click", () => addTab("", ""));
+    cfg.querySelector(".open-superhuman-cfg-reset").addEventListener("click", () => {
+      working.splice(0, working.length, ...OpenSuperhuman.DEFAULTS.tabs.map((t) => ({ ...t })));
       renderRows();
     });
-    cfg.querySelector(".cmdk-cfg-cancel").addEventListener("click", closeConfig);
-    cfg.querySelector(".cmdk-cfg-x").addEventListener("click", closeConfig);
-    cfg.querySelector(".cmdk-cfg-save").addEventListener("click", async () => {
+    cfg.querySelector(".open-superhuman-cfg-cancel").addEventListener("click", closeConfig);
+    cfg.querySelector(".open-superhuman-cfg-x").addEventListener("click", closeConfig);
+    cfg.querySelector(".open-superhuman-cfg-save").addEventListener("click", async () => {
       const cleaned = working
         .map((t) => ({ ...t, name: (t.name || "").trim() }))
         .filter((t) => t.type === "inbox" || (t.name && (t.query || "").trim()));
       await storage.set({ tabs: cleaned });
       closeConfig();
       rebuild();
-      CMDK.toast("Tabs saved");
+      OpenSuperhuman.toast("Tabs saved");
     });
     cfg.addEventListener("mousedown", (e) => {
       if (e.target === cfg) closeConfig();
@@ -344,5 +344,5 @@ window.CMDK = window.CMDK || {};
     });
   }
 
-  CMDK.tabs = { init, openConfig, navigate, list: tabs, next, prev };
+  OpenSuperhuman.tabs = { init, openConfig, navigate, list: tabs, next, prev };
 })();

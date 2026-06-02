@@ -52,19 +52,19 @@ function loadScripts(window, scripts) {
   for (const rel of scripts) window.eval(src(rel));
 }
 
-// Returns a window with CMDK.gmail wired up, or null if jsdom isn't installed
+// Returns a window with OpenSuperhuman.gmail wired up, or null if jsdom isn't installed
 // (so the suite degrades to a skip instead of a hard failure on a clean clone).
 function tryLoad(bodyHtml) {
   const window = makeWindow(bodyHtml);
   if (!window) return null;
 
   // Load the modules in manifest order. window.eval runs them in the window's
-  // global scope, so their `window.CMDK.*` assignments stick and `module` is
+  // global scope, so their `window.OpenSuperhuman.*` assignments stick and `module` is
   // undefined (dual-export takes the browser branch).
   loadScripts(window, ["src/shared/hashutil.js", "src/content/gmail.js"]);
 
-  // getContext checks CMDK.palette.isOpen(); drive it from a window flag.
-  window.CMDK.palette = { isOpen: () => window.__paletteOpen === true };
+  // getContext checks OpenSuperhuman.palette.isOpen(); drive it from a window flag.
+  window.OpenSuperhuman.palette = { isOpen: () => window.__paletteOpen === true };
   return window;
 }
 

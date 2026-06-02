@@ -30,7 +30,7 @@ async function load() {
 }
 
 // ---- Keyboard shortcut editor -------------------------------------------
-// Reads the shared catalog (window.CMDK_KEYMAP) + keyOverrides and lets you
+// Reads the shared catalog (window.OpenSuperhuman_KEYMAP) + keyOverrides and lets you
 // rebind any non-fixed command. Bindings persist as keyOverrides[id] = ["e"].
 
 let keymapOverrides = {}; // { commandId: ["e"] }  in-memory mirror of storage
@@ -38,7 +38,7 @@ let recording = null; // active recorder state, or null
 
 // Effective keys for a command: its override if present, else defaultKeys.
 function effKeys(cmd) {
-  const KM = window.CMDK_KEYMAP;
+  const KM = window.OpenSuperhuman_KEYMAP;
   if (KM && typeof KM.keysFor === "function") return KM.keysFor(cmd.id, keymapOverrides) || [];
   return keymapOverrides[cmd.id] || cmd.defaultKeys || [];
 }
@@ -55,7 +55,7 @@ function keyChips(binding) {
 
 function renderKeymap() {
   const wrap = $("keymap");
-  const KM = window.CMDK_KEYMAP;
+  const KM = window.OpenSuperhuman_KEYMAP;
   if (!KM || !Array.isArray(KM.commands)) {
     wrap.innerHTML = `<p class="muted">Shortcut catalog not loaded. Reload the extension (chrome://extensions → reload) and reopen this page.</p>`;
     return;
@@ -159,7 +159,7 @@ function buildKeymapRow(cmd) {
 // Returns { id, title } of the FIRST other command whose effective keys
 // already include `binding`, or null when free.
 function findCollision(binding, selfId) {
-  const KM = window.CMDK_KEYMAP;
+  const KM = window.OpenSuperhuman_KEYMAP;
   for (const cmd of KM.commands) {
     if (cmd.id === selfId) continue;
     if (effKeys(cmd).includes(binding)) return cmd;
@@ -343,7 +343,7 @@ async function saveBinding(id, binding) {
 // Bind `binding` to `id`, and remove it from `otherId`'s effective keys so the
 // chord stays unambiguous.
 async function replaceBinding(id, binding, otherId) {
-  const KM = window.CMDK_KEYMAP;
+  const KM = window.OpenSuperhuman_KEYMAP;
   const other = KM.commands.find((c) => c.id === otherId);
   const next = { ...keymapOverrides, [id]: [binding] };
   if (other) {

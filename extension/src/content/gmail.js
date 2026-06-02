@@ -5,7 +5,7 @@
 //   2) Stable Gmail attributes ([gh="cm"] = compose, [gh="tm"] = toolbar).
 //   3) Toolbar buttons matched by data-tooltip / aria-label (English; localizable later).
 //   4) Native Gmail keyboard shortcuts as a fallback (requires shortcuts ON in Gmail).
-window.CMDK = window.CMDK || {};
+window.OpenSuperhuman = window.OpenSuperhuman || {};
 
 (function () {
   function accountIndex() {
@@ -24,11 +24,11 @@ window.CMDK = window.CMDK || {};
   // True when a single conversation is open (hash ends in a long thread id),
   // e.g. #inbox/FMfcgz... or #search/is:unread/FMfcgz... The id is the LAST hash
   // segment regardless of how many list/query/label segments precede it — see
-  // CMDK.hashutil.hashIsThread. (Earlier this assumed the id was the 2nd segment,
+  // OpenSuperhuman.hashutil.hashIsThread. (Earlier this assumed the id was the 2nd segment,
   // which broke threads opened from search: shortcuts died until you cleared the
   // search box.)
   function inThread() {
-    return CMDK.hashutil.hashIsThread(location.hash || "");
+    return OpenSuperhuman.hashutil.hashIsThread(location.hash || "");
   }
 
   // Visible-only query helper.
@@ -188,7 +188,7 @@ window.CMDK = window.CMDK || {};
 
   // Dispatch a native single-key Gmail shortcut (e.g. 'c', 'e', 'r').
   // Requires "Keyboard shortcuts on" in Gmail settings.
-  // Events are tagged __cmdkSynthetic=true so the capture-phase hotkey engine
+  // Events are tagged __openSuperhumanSynthetic=true so the capture-phase hotkey engine
   // can ignore them on re-entry (kills recursion / double-fire).
   let _dispatchingSynthetic = false;
   function sendKey(key, opts = {}) {
@@ -209,10 +209,10 @@ window.CMDK = window.CMDK || {};
     _dispatchingSynthetic = true;
     try {
       const down = new KeyboardEvent("keydown", base);
-      down.__cmdkSynthetic = true;
+      down.__openSuperhumanSynthetic = true;
       target.dispatchEvent(down);
       const up = new KeyboardEvent("keyup", base);
-      up.__cmdkSynthetic = true;
+      up.__openSuperhumanSynthetic = true;
       target.dispatchEvent(up);
     } finally {
       _dispatchingSynthetic = false;
@@ -243,7 +243,7 @@ window.CMDK = window.CMDK || {};
   function undo() {
     const btn = findControl([/^Undo$/i]);
     if (btn) return realClick(btn);
-    if (CMDK.toast) CMDK.toast("Nothing to undo", { kind: "info" });
+    if (OpenSuperhuman.toast) OpenSuperhuman.toast("Nothing to undo", { kind: "info" });
     return false;
   }
 
@@ -282,7 +282,7 @@ window.CMDK = window.CMDK || {};
   function unsubscribe() {
     const btn = findControl([/^Unsubscribe\b/i, /\bUnsubscribe\b/i]);
     if (!btn) {
-      if (CMDK.toast) CMDK.toast("No unsubscribe action found", { kind: "warn" });
+      if (OpenSuperhuman.toast) OpenSuperhuman.toast("No unsubscribe action found", { kind: "warn" });
       return false;
     }
     realClick(btn);
@@ -313,7 +313,7 @@ window.CMDK = window.CMDK || {};
       return /\b(attachment|download|open|preview)\b/i.test(label);
     });
     if (target) return realClick(target);
-    if (CMDK.toast) CMDK.toast("No link or attachment found", { kind: "warn" });
+    if (OpenSuperhuman.toast) OpenSuperhuman.toast("No link or attachment found", { kind: "warn" });
     return false;
   }
 
@@ -399,7 +399,7 @@ window.CMDK = window.CMDK || {};
   // keyboard events (isTrusted === false) for native navigation, so a fake "u"
   // silently does nothing. Hash routing is trusted and always works.
   function back() {
-    const parent = CMDK.hashutil.parentHash(location.hash || "");
+    const parent = OpenSuperhuman.hashutil.parentHash(location.hash || "");
     const sels = [
       '[aria-label^="Back to"]',
       '[data-tooltip^="Back to"]',
@@ -620,7 +620,7 @@ window.CMDK = window.CMDK || {};
   // hotkey context gate so bindings only fire where they make sense.
   function getContext() {
     // 1) Palette open.
-    if (CMDK.palette && CMDK.palette.isOpen && CMDK.palette.isOpen()) return "paletteOpen";
+    if (OpenSuperhuman.palette && OpenSuperhuman.palette.isOpen && OpenSuperhuman.palette.isOpen()) return "paletteOpen";
 
     const active = document.activeElement;
 
@@ -669,7 +669,7 @@ window.CMDK = window.CMDK || {};
     return "unknown";
   }
 
-  CMDK.gmail = {
+  OpenSuperhuman.gmail = {
     accountIndex,
     basePath,
     setHash,
