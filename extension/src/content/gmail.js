@@ -78,6 +78,27 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return true;
   }
 
+  // Gmail lays out a row's per-row action buttons (Archive, Delete, …) at 0x0
+  // and reveals them only on mouseover. We navigate by keyboard and never move
+  // the real pointer, so synthesize the hover to make those buttons clickable.
+  // (Like realClick this drives DOM handlers, not the native keyboard router.)
+  function hover(el) {
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    const opts = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: r.left + r.width / 2,
+      clientY: r.top + r.height / 2,
+    };
+    for (const type of ["pointerover", "mouseover", "pointermove", "mousemove"]) {
+      const Ctor = type.startsWith("pointer") && typeof PointerEvent !== "undefined" ? PointerEvent : MouseEvent;
+      el.dispatchEvent(new Ctor(type, opts));
+    }
+    return true;
+  }
+
   function findByTooltip(prefix) {
     const sel = [
       `[data-tooltip^="${prefix}"]`,
@@ -678,6 +699,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     clickByTooltip,
     exactButton,
     realClick,
+    hover,
     compose,
     sendKey,
     isDispatchingSynthetic,

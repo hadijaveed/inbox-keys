@@ -44,12 +44,26 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return /^#search\//.test(location.hash || "");
   }
 
+  function hasListSelection() {
+    return !!(listnav && listnav.selectedRows && listnav.selectedRows().length);
+  }
+
+  function hasVisibleListSurface() {
+    return Array.from(
+      document.querySelectorAll('tr.zA, [role="main"] [gh="tl"], [role="main"] [role="checkbox"]')
+    ).some((el) => gmail.isVisible && gmail.isVisible(el));
+  }
+
   function canOverrideEditable(e, ctx) {
     if (!isSearchInput(e.target)) return false;
     if (!isSubmittedSearchView()) return false;
     if (ctx !== "threadView" && ctx !== "inboxList") return false;
     if (e.metaKey || e.ctrlKey || e.altKey) return false;
-    if (searchEditing) return false;
+    // searchEditing means the user is composing a query, so letters should type.
+    // But once rows are selected they're triaging, not typing — let triage keys
+    // (x to deselect, e to archive, Escape to clear) through even with the search
+    // box focused. Otherwise the selection is stuck: "I selected it but can't clear."
+    if (searchEditing && !hasListSelection()) return false;
 
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     return [
@@ -195,7 +209,9 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
         searchEditing = false;
         blurSubmittedSearch(e.target);
         return;
-      } else if (e.key === "Escape" && searchEditing) {
+      } else if (e.key === "Escape" && searchEditing && !hasListSelection()) {
+        // Only blur the search box on Escape when there's nothing selected. With a
+        // standing selection, let Escape fall through to clear it first.
         searchEditing = false;
         e.target.blur();
         return;
@@ -245,6 +261,26 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       return;
     }
 
+    // Tab / Shift+Tab: cycle split-inbox tabs from any top-level Gmail list
+    // surface. Gmail can leave focus in the search input, or briefly report an
+    // otherwise unknown context while the list is visible; split-tab navigation
+    // should still work there. Keep compose/thread/modal/editable fields protected.
+    if (
+      e.key === "Tab" &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !gmail.inThread() &&
+      (ctx === "inboxList" || ctx === "unknown" || (ctx === "searchFocused" && hasVisibleListSurface())) &&
+      (!isEditable(e.target) || isSearchInput(e.target))
+    ) {
+      consume(e);
+      searchEditing = false;
+      if (e.shiftKey) OpenSuperhuman.tabs.prev();
+      else OpenSuperhuman.tabs.next();
+      return;
+    }
+
     // Modified Superhuman bindings. Keep compose/editable fields protected so
     // Gmail/browser formatting shortcuts still work while writing.
     if (!isEditable(e.target) && !e.altKey && !e.shiftKey && (e.metaKey || e.ctrlKey)) {
@@ -284,15 +320,6 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       if (e.key === ":" || e.key === ";") { consume(e); threadnav.expandAllToggle(); return; }
       if (e.key.toLowerCase() === "e" && !e.shiftKey) { consume(e); gmail.archiveThread(); return; }
       if (e.key.toLowerCase() === "r" && !e.shiftKey) { consume(e); gmail.replyToThread(); return; }
-    }
-
-    // Tab / Shift+Tab: cycle split-inbox tabs — only on the inbox list, never in
-    // compose / thread / search / editable.
-    if (e.key === "Tab" && ctx === "inboxList") {
-      consume(e);
-      if (e.shiftKey) OpenSuperhuman.tabs.prev();
-      else OpenSuperhuman.tabs.next();
-      return;
     }
 
     // Shift+G -> bottom of the list. Special-cased BEFORE chord logic, otherwise
@@ -371,6 +398,14 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     document.addEventListener("pointerdown", (e) => {
       if (isSearchInput(e.target)) searchEditing = true;
     }, true);
+    // A hashchange means a search was submitted (or we navigated): typing a query
+    // never changes the hash, so we are no longer composing. Clear searchEditing so
+    // it can't get stuck true and swallow the list shortcuts (e/x/j/k) while Gmail
+    // keeps the search box focused over the results. Previously searchEditing only
+    // cleared on Enter/Escape in the box or a blur timeout, so submitting via a
+    // suggestion click or re-focusing the box left it stuck — "e stops archiving
+    // after a search". canOverrideEditable then refused every list key.
+    window.addEventListener("hashchange", () => { searchEditing = false; });
   }
 
   function armSearchEditing() {

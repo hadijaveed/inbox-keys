@@ -27,26 +27,26 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     {
       title: "Daily triage",
       items: [
-        { name: "Unread", query: "is:unread", note: "New things to clear first" },
-        { name: "Important", query: "is:important", note: "Gmail priority signals" },
-        { name: "Today", query: "newer_than:1d", note: "Fresh mail only" },
-        { name: "To me", query: "to:me", note: "Directly addressed" },
+        { name: "Unread", query: "in:inbox is:unread", note: "Unread Inbox mail to clear first" },
+        { name: "Important", query: "in:inbox is:important", note: "Priority Inbox mail" },
+        { name: "Today", query: "in:inbox newer_than:1d", note: "Fresh Inbox mail only" },
+        { name: "To me", query: "in:inbox to:me", note: "Directly addressed Inbox mail" },
       ],
     },
     {
       title: "Follow-up",
       items: [
-        { name: "Starred", query: "is:starred", note: "Hand-picked follow-ups" },
+        { name: "Starred", query: "in:inbox is:starred", note: "Starred Inbox follow-ups" },
         { name: "Sent follow-up", query: "from:me -in:chats older_than:2d", note: "Sent mail to revisit" },
-        { name: "Attachments", query: "has:attachment", note: "Files and docs" },
+        { name: "Attachments", query: "in:inbox has:attachment", note: "Inbox mail with files" },
       ],
     },
     {
       title: "Gmail categories",
       items: [
-        { name: "Updates", query: "category:updates", note: "Notifications and tools" },
-        { name: "Social", query: "category:social", note: "Social networks" },
-        { name: "Promotions", query: "category:promotions", note: "Marketing mail" },
+        { name: "Updates", query: "in:inbox category:updates", note: "Notifications and tools" },
+        { name: "Social", query: "in:inbox category:social", note: "Social networks" },
+        { name: "Promotions", query: "in:inbox category:promotions", note: "Marketing mail" },
       ],
     },
   ];
@@ -55,31 +55,99 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return storage.get("tabs") || [];
   }
 
+  const LEGACY_QUERIES = {
+    unread: ["is:unread"],
+    important: ["is:important"],
+    starred: ["is:starred"],
+    attachments: ["has:attachment"],
+  };
+
+  const CANONICAL_QUERIES = {
+    unread: "in:inbox is:unread",
+    important: "in:inbox is:important",
+    starred: "in:inbox is:starred",
+    attachments: "in:inbox has:attachment",
+  };
+
+  const HASH_ALIASES = {
+    important: [/^#imp(?:\/|$)/],
+    starred: [/^#starred(?:\/|$)/],
+  };
+
+  let lastSplitTabId = null;
+
+  function normQuery(value) {
+    return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  function effectiveQuery(tab) {
+    const canonical = CANONICAL_QUERIES[tab && tab.id];
+    if (!canonical) return tab.query || "";
+    const current = normQuery(tab.query);
+    const legacy = (LEGACY_QUERIES[tab.id] || []).map(normQuery);
+    return legacy.includes(current) ? canonical : tab.query || "";
+  }
+
   function hashFor(tab) {
     if (tab.type === "inbox") return "#inbox";
-    return "#search/" + encodeURIComponent(tab.query || "");
+    return "#search/" + encodeURIComponent(effectiveQuery(tab));
+  }
+
+  function remember(tab) {
+    lastSplitTabId = tab && tab.id ? tab.id : null;
   }
 
   function navigate(tab) {
+    remember(tab);
     location.hash = hashFor(tab);
+  }
+
+  function searchBoxQuery() {
+    const box = Array.from(
+      document.querySelectorAll('input[aria-label="Search mail"], input[name="q"]')
+    ).filter((el) => gmail.isVisible(el))[0];
+    return box ? box.value || "" : "";
   }
 
   // Current search query from the hash, stripping any trailing thread id.
   function currentQuery() {
     const parts = (location.hash || "").replace(/^#/, "").split("/");
-    if (parts[0] !== "search") return null;
+    if (parts[0] !== "search") return searchBoxQuery() || null;
     try {
-      return decodeURIComponent(parts[1] || "");
+      return decodeURIComponent(parts[1] || "") || searchBoxQuery() || null;
     } catch {
-      return parts[1] || "";
+      return parts[1] || searchBoxQuery() || null;
     }
   }
 
-  function isActive(tab) {
+  function matchesQuery(tab, query) {
+    if (!tab || tab.type === "inbox" || query == null) return false;
+    const active = normQuery(query);
+    if (!active) return false;
+    if (active === normQuery(tab.query)) return true;
+    if (active === normQuery(effectiveQuery(tab))) return true;
+    if (active === normQuery(CANONICAL_QUERIES[tab.id])) return true;
+    return (LEGACY_QUERIES[tab.id] || []).some((legacy) => active === normQuery(legacy));
+  }
+
+  function activeTabId() {
     const h = location.hash || "#inbox";
-    if (tab.type === "inbox") return /^#inbox(\b|\/|$)/.test(h) || h === "" || h === "#";
     const q = currentQuery();
-    return q != null && q === (tab.query || "");
+    if ((h === "" || h === "#" || /^#inbox(\b|\/|$)/.test(h)) && !normQuery(q)) return "inbox";
+    for (const tab of tabs()) {
+      if ((HASH_ALIASES[tab.id] || []).some((re) => re.test(h))) return tab.id;
+      if (matchesQuery(tab, q)) return tab.id;
+    }
+    // Gmail can repaint the top filter chips/search tools after a split-tab
+    // navigation and temporarily leave no reliable hash/search value to match.
+    // Preserve the split-tab the extension just navigated to so highlight and
+    // Tab/Shift+Tab cycling do not reset to Inbox during that repaint.
+    if (/^#search(?:\/|$)/.test(h) && lastSplitTabId) return lastSplitTabId;
+    return null;
+  }
+
+  function isActive(tab) {
+    return !!tab && activeTabId() === tab.id;
   }
 
   // Cycle the split-inbox tabs relative to the active one, wrapping around.
@@ -87,7 +155,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   function cycle(dir) {
     const list = tabs();
     if (!list.length) return;
-    let cur = list.findIndex((t) => isActive(t));
+    const activeId = activeTabId();
+    let cur = list.findIndex((t) => t.id === activeId);
     if (cur < 0) cur = 0;
     const next = (cur + dir + list.length) % list.length;
     navigate(list[next]);
@@ -112,7 +181,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       b.className = "open-superhuman-tab";
       b.dataset.id = tab.id;
       b.textContent = tab.name;
-      b.title = tab.type === "inbox" ? "Inbox" : tab.query;
+      b.title = tab.type === "inbox" ? "Inbox" : effectiveQuery(tab);
       b.addEventListener("click", () => navigate(tab));
       el.appendChild(b);
     });
@@ -187,7 +256,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
         <div class="open-superhuman-cfg-suggest-label">Presets</div>
         <div class="open-superhuman-cfg-suggest"></div>
         <div class="open-superhuman-cfg-foot">
-          <span class="open-superhuman-cfg-hint">Good defaults: Inbox, Unread, Important, Starred, Attachments.</span>
+          <span class="open-superhuman-cfg-hint">Good defaults: Inbox, Unread, Important, Starred, Attachments. Use <code>in:inbox</code> for tabs you want to clear with Archive.</span>
           <span>
             <button class="open-superhuman-btn open-superhuman-btn--ghost open-superhuman-cfg-cancel">Cancel</button>
             <button class="open-superhuman-btn open-superhuman-cfg-save">Save</button>
@@ -205,7 +274,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       const isInbox = tab.type === "inbox";
       row.innerHTML = `
         <input class="open-superhuman-cfg-name" value="${escapeAttr(tab.name)}" placeholder="Tab name" />
-        <input class="open-superhuman-cfg-query" value="${escapeAttr(tab.query || "")}" placeholder="${isInbox ? "Inbox (the default view)" : "is:unread, label:Clients, from:boss@…"}" ${isInbox ? "disabled" : ""} />
+        <input class="open-superhuman-cfg-query" value="${escapeAttr(tab.query || "")}" placeholder="${isInbox ? "Inbox (the default view)" : "in:inbox is:unread, label:Clients, from:boss@…"}" ${isInbox ? "disabled" : ""} />
         <button class="open-superhuman-cfg-del" title="Remove" ${isInbox ? "disabled" : ""}>✕</button>`;
       row.querySelector(".open-superhuman-cfg-name").addEventListener("input", (e) => (working[i].name = e.target.value));
       if (!isInbox) {
@@ -339,6 +408,16 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     observer = new MutationObserver(debounce(ensure, 200));
     observer.observe(document.body, { childList: true, subtree: true });
     window.addEventListener("hashchange", ensure);
+    const isJsdom = /jsdom/i.test((navigator && navigator.userAgent) || "");
+    if (!isJsdom) {
+      let lastRoute = "";
+      setInterval(() => {
+        const route = location.href + "|" + searchBoxQuery();
+        if (route === lastRoute) return;
+        lastRoute = route;
+        ensure();
+      }, 500);
+    }
     storage.onChange((_, changes) => {
       if (changes && (changes.tabs || changes.tabsEnabled)) rebuild();
     });

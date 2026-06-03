@@ -29,6 +29,10 @@ function listFixture() {
     </div>`;
 }
 
+function listFixtureWithSearchValue(value) {
+  return listFixture().replace('<input aria-label="Search mail" name="q" />', `<input aria-label="Search mail" name="q" value="${value}" />`);
+}
+
 function threadFixture() {
   return `
     <div role="main">
@@ -163,6 +167,292 @@ function wireList(w) {
   assert.equal(w.__openedRow, "one", "Enter should open the cursor row in search results");
 }
 
+// Regression: submitting a search must un-stick "search editing" so list shortcuts
+// (e/x/j/k) work even while Gmail keeps the search box focused over the results.
+// searchEditing used to only clear on Enter/Escape-in-box or a blur timeout, so
+// submitting via a suggestion click (or re-focusing the box) left it stuck true and
+// every list key was swallowed — the "e stops archiving after a search" bug. A
+// hashchange (the search submit) now clears it.
+{
+  const w = load(listFixture(), "#search/sean");
+  wireList(w);
+  const search = w.document.querySelector('input[name="q"]');
+  // User opened the search box and is composing a query: editing armed + focused.
+  w.OpenSuperhuman.hotkeys.armSearchEditing();
+  search.focus();
+
+  // While actively typing, x must stay typeable (not hijack the list).
+  const whileTyping = press(w, "x", { target: search });
+  assert.equal(whileTyping.defaultPrevented, false, "while composing a query, x stays typeable in the search box");
+  assert.equal(rows(w).some((r) => r.querySelector('[role="checkbox"]').getAttribute("aria-checked") === "true"), false, "composing a query must not select a row");
+
+  // Submit the search: the hash changes. Editing mode must clear even though Gmail
+  // leaves the search box focused on the results.
+  w.location.hash = "#search/sean%20chiu";
+  w.dispatchEvent(new w.Event("hashchange"));
+
+  const afterSubmit = press(w, "x", { target: search });
+  assert.equal(afterSubmit.defaultPrevented, true, "after submit, x drives the list even with the search box still focused");
+  assert.equal(rows(w)[0].querySelector('[role="checkbox"]').getAttribute("aria-checked"), "true", "x selects the cursor row once the search is submitted");
+
+  // e archives the same way (same gate as x): it must reach the list too.
+  const archiveEvent = press(w, "e", { target: search });
+  assert.equal(archiveEvent.defaultPrevented, true, "e (archive) is claimed in submitted search results with the box focused");
+}
+
+// Regression: e (archive) in search/all-mail on a conversation that ISN'T in the
+// Inbox. Search results have no per-row Archive button, so archive() selects the
+// row then drives the toolbar — but Gmail disables that toolbar Archive when the
+// mail isn't in the Inbox (it offers "Move to Inbox" instead). The old code
+// clicked the dead button: the row got selected and nothing happened, which is
+// exactly the reported "e selects but doesn't archive when search is on." Now a
+// disabled Archive drops the selection and warns; an in-Inbox row in the same
+// view still archives through the enabled toolbar button.
+{
+  const searchFixture = (archiveDisabled) => `
+    <input aria-label="Search mail" name="q" />
+    <div role="main">
+      <div gh="tl"><table><tbody>
+        <tr class="zA" data-row="one">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">one</span></td>
+        </tr>
+        <tr class="zA" data-row="two">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">two</span></td>
+        </tr>
+      </tbody></table></div>
+    </div>
+    <div gh="tm">
+      <div role="button" aria-label="Archive"${archiveDisabled ? ' aria-disabled="true"' : ""}>Archive</div>
+    </div>`;
+
+  const wire = (w) => {
+    for (const row of rows(w)) {
+      row.querySelector('[role="checkbox"]').addEventListener("click", (e) => {
+        const cb = e.currentTarget;
+        cb.setAttribute("aria-checked", cb.getAttribute("aria-checked") === "true" ? "false" : "true");
+      });
+    }
+    w.document.querySelector('[gh="tm"] [aria-label="Archive"]').addEventListener("click", () => {
+      w.__toolbarArchived = true;
+    });
+    // jsdom has no requestAnimationFrame (toast.js uses it), so spy instead of
+    // letting the real toast run. listnav reads OpenSuperhuman.toast dynamically.
+    w.OpenSuperhuman.toast = (msg) => { w.__lastToast = msg; };
+  };
+
+  // Not in Inbox: the toolbar Archive is disabled.
+  {
+    const w = load(searchFixture(true), "#search/is%3Aunread");
+    wire(w);
+    const ev = press(w, "e", { target: w.document.body });
+    assert.equal(ev.defaultPrevented, true, "e is claimed in search results");
+    assert.notEqual(w.__toolbarArchived, true, "a disabled Archive button must not be clicked");
+    assert.equal(
+      rows(w)[0].querySelector('[role="checkbox"]').getAttribute("aria-checked"),
+      "false",
+      "the selection we made is dropped when Archive isn't available"
+    );
+    assert.match(w.__lastToast || "", /Inbox/, "the user is told why nothing was archived");
+  }
+
+  // In Inbox (same search view): the toolbar Archive is enabled and must fire.
+  {
+    const w = load(searchFixture(false), "#search/is%3Aunread");
+    wire(w);
+    const ev = press(w, "e", { target: w.document.body });
+    assert.equal(ev.defaultPrevented, true, "e is claimed in search results");
+    assert.equal(w.__toolbarArchived, true, "an enabled toolbar Archive still archives from search");
+    assert.equal(w.__lastToast, undefined, "no warning when the archive actually happens");
+  }
+}
+
+// Regression: archive a single cursor row whose ONLY enabled Archive is the
+// per-row hover button. Gmail keeps that button in the DOM but sized 0x0 until
+// the row is hovered, and in a Priority ("Important first") inbox the toolbar
+// Archive is DISABLED even for in-Inbox mail. We navigate by keyboard and never
+// hover, so the old code saw the per-row button as invisible and clicked the
+// dead toolbar button — the row got selected and nothing happened ("e selects
+// but doesn't archive, even in the inbox"). The fix hovers to reveal the per-row
+// Archive and clicks it, never touching the disabled toolbar button.
+{
+  // Per-row Archive is Gmail's real shape: <li data-tooltip="Archive"> with no
+  // role="button". The toolbar Archive is a disabled [role="button"].
+  const w = load(`
+    <div role="main">
+      <div gh="tl"><table><tbody>
+        <tr class="zA" data-row="one">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">one</span></td>
+          <td><ul><li data-tooltip="Archive">Archive</li></ul></td>
+        </tr>
+      </tbody></table></div>
+    </div>
+    <div gh="tm"><div role="button" aria-label="Archive" aria-disabled="true">Archive</div></div>
+  `, "#inbox");
+
+  const row = rows(w)[0];
+  const perRow = row.querySelector('li[data-tooltip="Archive"]');
+  const toolbar = w.document.querySelector('[gh="tm"] [aria-label="Archive"]');
+
+  // Mimic Gmail: the per-row Archive is 0x0 (invisible) until the row is hovered.
+  let revealed = false;
+  perRow.getBoundingClientRect = () =>
+    revealed
+      ? { width: 120, height: 20, top: 0, left: 0, right: 120, bottom: 20, x: 0, y: 0, toJSON() {} }
+      : { width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0, toJSON() {} };
+  row.addEventListener("mouseover", () => { revealed = true; });
+
+  let perRowClicked = false;
+  let toolbarClicked = false;
+  perRow.addEventListener("click", () => { perRowClicked = true; });
+  toolbar.addEventListener("click", () => { toolbarClicked = true; });
+  row.querySelector('[role="checkbox"]').addEventListener("click", (e) => {
+    const cb = e.currentTarget;
+    cb.setAttribute("aria-checked", cb.getAttribute("aria-checked") === "true" ? "false" : "true");
+  });
+
+  assert.equal(w.OpenSuperhuman.gmail.isVisible(perRow), false, "per-row Archive starts hidden (0x0) before hover");
+
+  const ev = press(w, "e", { target: w.document.body });
+  assert.equal(ev.defaultPrevented, true, "e is claimed in the inbox list");
+  assert.equal(perRowClicked, true, "archive hovers the row to reveal its per-row Archive and clicks it");
+  assert.equal(toolbarClicked, false, "the disabled toolbar Archive is never clicked");
+  assert.equal(
+    row.querySelector('[role="checkbox"]').getAttribute("aria-checked"),
+    "false",
+    "per-row archive doesn't strand a selection"
+  );
+}
+
+// Bulk archive when the toolbar Archive is disabled (Priority Inbox): fall back
+// to archiving each selected row through its own per-row hover button.
+{
+  const w = load(`
+    <div role="main">
+      <div gh="tl"><table><tbody>
+        <tr class="zA" data-row="one">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">one</span></td>
+          <td><ul><li data-tooltip="Archive">Archive</li></ul></td>
+        </tr>
+        <tr class="zA" data-row="two">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">two</span></td>
+          <td><ul><li data-tooltip="Archive">Archive</li></ul></td>
+        </tr>
+      </tbody></table></div>
+    </div>
+    <div gh="tm"><div role="button" aria-label="Archive" aria-disabled="true">Archive</div></div>
+  `, "#inbox");
+
+  const archived = [];
+  for (const row of rows(w)) {
+    row.querySelector('[role="checkbox"]').addEventListener("click", (e) => {
+      const cb = e.currentTarget;
+      cb.setAttribute("aria-checked", cb.getAttribute("aria-checked") === "true" ? "false" : "true");
+    });
+    row.querySelector('li[data-tooltip="Archive"]').addEventListener("click", () => {
+      archived.push(row.getAttribute("data-row"));
+    });
+  }
+  let toolbarClicked = false;
+  w.document.querySelector('[gh="tm"] [aria-label="Archive"]').addEventListener("click", () => { toolbarClicked = true; });
+
+  press(w, "x", { target: w.document.body }); // select row one
+  press(w, "j", { target: w.document.body }); // move to row two
+  press(w, "x", { target: w.document.body }); // select row two
+  assert.equal(w.OpenSuperhuman.listnav.selectedRows().length, 2, "two rows selected");
+
+  press(w, "e", { target: w.document.body });
+  assert.equal(toolbarClicked, false, "the disabled toolbar Archive isn't used for bulk");
+  assert.deepEqual(archived.sort(), ["one", "two"], "each selected row is archived via its per-row button");
+}
+
+// "Archive here": e targets the row the mouse is over, not a stale top-of-list
+// cursor. Hovering the second row makes it the target, so e archives the email
+// you're actually looking at (whether you got there by mouse or by j/k).
+{
+  const w = load(`
+    <div role="main">
+      <div gh="tl"><table><tbody>
+        <tr class="zA" data-row="one">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">one</span></td>
+          <td><ul><li data-tooltip="Archive">Archive</li></ul></td>
+        </tr>
+        <tr class="zA" data-row="two">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">two</span></td>
+          <td><ul><li data-tooltip="Archive">Archive</li></ul></td>
+        </tr>
+      </tbody></table></div>
+    </div>
+  `, "#inbox");
+
+  const archived = [];
+  for (const row of rows(w)) {
+    row.querySelector('li[data-tooltip="Archive"]').addEventListener("click", () => {
+      archived.push(row.getAttribute("data-row"));
+    });
+  }
+
+  // The default cursor is the top row, but the mouse is over the SECOND row.
+  rows(w)[1].dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
+  press(w, "e", { target: w.document.body });
+  assert.deepEqual(archived, ["two"], "e archives the hovered row, not the default top row");
+
+  // After a keyboard move, the keyboard cursor wins again (most-recent pointer).
+  archived.length = 0;
+  press(w, "k", { target: w.document.body }); // move cursor up to the top row
+  press(w, "e", { target: w.document.body });
+  assert.deepEqual(archived, ["one"], "after j/k the keyboard cursor takes the target back");
+}
+
+// Regression: a standing selection must be clearable even when Gmail keeps the
+// search box focused and search-editing is armed. Escape used to just blur the box
+// and leave the row selected ("I selected the convo but cannot clear it"); a second
+// Escape was needed. A selection now overrides search-editing so Escape clears it.
+{
+  const w = load(listFixture(), "#search/is%3Aunread");
+  wireList(w);
+  const search = w.document.querySelector('input[name="q"]');
+  const cb0 = rows(w)[0].querySelector('[role="checkbox"]');
+
+  press(w, "x", { target: w.document.body });
+  assert.equal(cb0.getAttribute("aria-checked"), "true", "x selects the cursor row");
+
+  // User is focused in the search box with editing armed (e.g. they clicked it).
+  w.OpenSuperhuman.hotkeys.armSearchEditing();
+  search.focus();
+
+  const esc = press(w, "Escape", { target: search });
+  assert.equal(esc.defaultPrevented, true, "Escape is claimed to clear the selection, not just blur the search box");
+  assert.equal(cb0.getAttribute("aria-checked"), "false", "Escape clears the standing selection on the first press");
+}
+
+// And x must still deselect a selected row even with the search box focused/armed.
+{
+  const w = load(listFixture(), "#search/is%3Aunread");
+  wireList(w);
+  const search = w.document.querySelector('input[name="q"]');
+  const cb0 = rows(w)[0].querySelector('[role="checkbox"]');
+
+  press(w, "x", { target: w.document.body });
+  assert.equal(cb0.getAttribute("aria-checked"), "true", "x selects the cursor row");
+  w.OpenSuperhuman.hotkeys.armSearchEditing();
+  search.focus();
+
+  const deselect = press(w, "x", { target: search });
+  assert.equal(deselect.defaultPrevented, true, "x is claimed to toggle selection with the search box focused");
+  assert.equal(cb0.getAttribute("aria-checked"), "false", "x deselects the row while a selection exists");
+
+  // Once nothing is selected, x is back to typing mode (must not be hijacked).
+  const typed = press(w, "x", { target: search });
+  assert.equal(typed.defaultPrevented, false, "with no selection, x stays typeable in the search box");
+}
+
 // Basic list triage shortcuts should drive the cursor row controls.
 {
   const w = load(listFixture(), "#inbox");
@@ -186,10 +476,121 @@ function wireList(w) {
   const w = load(listFixture(), "#inbox");
 
   press(w, "Tab", { target: w.document.body });
-  assert.equal(w.location.hash, "#search/is%3Aunread", "Tab should move to the next split-inbox tab");
+  assert.equal(w.location.hash, "#search/in%3Ainbox%20is%3Aunread", "Tab should move to the next split-inbox tab");
 
   press(w, "Tab", { target: w.document.body, shiftKey: true });
   assert.equal(w.location.hash, "#inbox", "Shift+Tab should move to the previous split-inbox tab");
+}
+
+// Gmail can leave the search box focused on a visible list. Split-tab cycling
+// should still work because Tab is the user's tab-switching shortcut here.
+{
+  const w = load(listFixture(), "#inbox");
+  const search = w.document.querySelector('input[name="q"]');
+  w.OpenSuperhuman.hotkeys.armSearchEditing();
+  search.focus();
+
+  const event = press(w, "Tab", { target: search });
+
+  assert.equal(event.defaultPrevented, true, "Tab should be claimed from a focused Gmail search box on the list");
+  assert.equal(w.location.hash, "#search/in%3Ainbox%20is%3Aunread", "Tab should move to the next split-inbox tab from search focus");
+}
+
+// If Gmail reports searchFocused while a visible list is still on screen, Tab
+// should still cycle split-inbox tabs.
+{
+  const w = load('<input aria-label="Search mail" name="q" /><div role="main"><div role="checkbox"></div></div>', "#inbox");
+  const search = w.document.querySelector('input[name="q"]');
+  search.focus();
+
+  const event = press(w, "Tab", { target: search });
+
+  assert.equal(w.OpenSuperhuman.gmail.getContext(), "searchFocused", "fixture should exercise the searchFocused context");
+  assert.equal(event.defaultPrevented, true, "Tab should be claimed from searchFocused when a list surface is visible");
+  assert.equal(w.location.hash, "#search/in%3Ainbox%20is%3Aunread", "Tab should cycle from searchFocused list state");
+}
+
+// Native Gmail Important route should be treated as the Important split tab, so
+// active-state and Tab cycling both start from the tab the user is looking at.
+{
+  const w = load(listFixture(), "#imp");
+
+  press(w, "Tab", { target: w.document.body });
+
+  assert.equal(w.location.hash, "#search/in%3Ainbox%20is%3Astarred", "Tab from Gmail's native Important route should move to Starred");
+}
+
+// If an already-open Gmail page still has the old built-in tab queries in memory,
+// a current inbox-scoped search must still be recognized as that tab. Otherwise
+// Tab starts from Inbox and navigates to Unread again, appearing to do nothing.
+{
+  const w = load(listFixture(), "#search/in%3Ainbox%20is%3Aunread");
+  w.OpenSuperhuman.storage.cache.tabs = [
+    { id: "inbox", name: "Inbox", type: "inbox", query: "" },
+    { id: "unread", name: "Unread", type: "search", query: "is:unread" },
+    { id: "important", name: "Important", type: "search", query: "is:important" },
+    { id: "starred", name: "Starred", type: "search", query: "is:starred" },
+    { id: "attachments", name: "Attachments", type: "search", query: "has:attachment" },
+  ];
+
+  press(w, "Tab", { target: w.document.body });
+
+  assert.equal(w.location.hash, "#search/in%3Ainbox%20is%3Aimportant", "Tab from inbox-scoped Unread should advance even with old saved tab queries");
+}
+
+// The tab bar should highlight Gmail's native Important route as Important, not
+// leave Inbox highlighted or no tab highlighted.
+{
+  const w = load(listFixture(), "#imp");
+  w.OpenSuperhuman.tabs.init();
+
+  const active = Array.from(w.document.querySelectorAll(".open-superhuman-tab--active")).map((b) => b.textContent);
+
+  assert.deepEqual(active, ["Important"], "native #imp should highlight the Important split tab");
+}
+
+// The tab bar should also highlight an inbox-scoped query even if the stored
+// built-in tab query is the pre-migration value.
+{
+  const w = load(listFixture(), "#search/in%3Ainbox%20is%3Aunread");
+  w.OpenSuperhuman.storage.cache.tabs = [
+    { id: "inbox", name: "Inbox", type: "inbox", query: "" },
+    { id: "unread", name: "Unread", type: "search", query: "is:unread" },
+    { id: "important", name: "Important", type: "search", query: "is:important" },
+  ];
+  w.OpenSuperhuman.tabs.init();
+
+  const active = Array.from(w.document.querySelectorAll(".open-superhuman-tab--active")).map((b) => b.textContent);
+
+  assert.deepEqual(active, ["Unread"], "inbox-scoped Unread should highlight even when stored Unread query is old");
+}
+
+// Gmail sometimes leaves the useful route in the search box rather than the
+// hash. In that state, the matching split tab should highlight instead of Inbox.
+{
+  const w = load(listFixtureWithSearchValue("in:inbox has:attachment"), "#inbox");
+  w.OpenSuperhuman.tabs.init();
+
+  const active = Array.from(w.document.querySelectorAll(".open-superhuman-tab--active")).map((b) => b.textContent);
+
+  assert.deepEqual(active, ["Attachments"], "search-box query should drive active split-tab highlighting");
+}
+
+// Gmail can repaint filter chips after a split-tab navigation and temporarily
+// leave only a generic #search route. Preserve the extension's last split tab
+// so highlight and Tab cycling do not reset to Inbox during that repaint.
+{
+  const w = load(listFixture(), "#inbox");
+  const attachments = w.OpenSuperhuman.tabs.list().find((tab) => tab.id === "attachments");
+  w.OpenSuperhuman.tabs.navigate(attachments);
+  w.location.hash = "#search";
+  w.OpenSuperhuman.tabs.init();
+
+  const active = Array.from(w.document.querySelectorAll(".open-superhuman-tab--active")).map((b) => b.textContent);
+  assert.deepEqual(active, ["Attachments"], "last split tab should stay highlighted during Gmail search/filter repaint");
+
+  press(w, "Tab", { target: w.document.body });
+  assert.equal(w.location.hash, "#inbox", "Tab should cycle forward from the preserved Attachments tab");
 }
 
 // Compose/reply bodies are protected: regular letters must not drive list
