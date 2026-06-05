@@ -45,7 +45,10 @@ function effKeys(cmd) {
 
 // Render a single binding ("g i") as separate [g][i] chips.
 function keyChips(binding) {
-  return String(binding)
+  const display = window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function"
+    ? OpenSuperhuman_KEYMAP.displayBinding(binding)
+    : String(binding || "");
+  return display
     .trim()
     .split(/\s+/)
     .filter(Boolean)
@@ -78,7 +81,11 @@ function renderKeymap() {
   for (const g of groups) {
     const rows = byGroup.get(g).filter((cmd) => {
       if (!filter) return true;
-      const hay = (cmd.title + " " + g + " " + effKeys(cmd).join(" ")).toLowerCase();
+      const keys = effKeys(cmd);
+      const displayKeys = window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function"
+        ? keys.map((key) => OpenSuperhuman_KEYMAP.displayBinding(key))
+        : keys;
+      const hay = (cmd.title + " " + g + " " + keys.join(" ") + " " + displayKeys.join(" ")).toLowerCase();
       return hay.includes(filter);
     });
     if (!rows.length) continue;

@@ -31,6 +31,13 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return typeof cmd.title === "function" ? cmd.title() : cmd.title;
   }
 
+  function keyLabel(binding) {
+    if (window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function") {
+      return OpenSuperhuman_KEYMAP.displayBinding(binding);
+    }
+    return String(binding || "");
+  }
+
   function build() {
     if (root) return;
     root = document.createElement("div");
@@ -38,7 +45,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     root.innerHTML = `
       <div class="open-superhuman-modal" role="dialog" aria-label="Command palette">
         <div class="open-superhuman-input-row">
-          <span class="open-superhuman-prompt">⌘K</span>
+          <span class="open-superhuman-prompt"></span>
           <input class="open-superhuman-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" />
         </div>
         <div class="open-superhuman-results"></div>
@@ -49,6 +56,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
         </div>
       </div>`;
     document.documentElement.appendChild(root);
+    root.querySelector(".open-superhuman-prompt").textContent = keyLabel("Mod+K");
     input = root.querySelector(".open-superhuman-input");
     results = root.querySelector(".open-superhuman-results");
 
@@ -119,7 +127,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       const row = document.createElement("div");
       row.className = "open-superhuman-row" + (i === active ? " open-superhuman-row--active" : "");
       row.dataset.i = i;
-      const keys = (cmd.keys || []).map((k) => `<kbd>${k}</kbd>`).join("");
+      const keys = (cmd.keys || []).map((k) => `<kbd>${escapeHtml(keyLabel(k))}</kbd>`).join("");
       row.innerHTML = `
         <span class="open-superhuman-row-title">${escapeHtml(title(cmd))}</span>
         <span class="open-superhuman-row-keys">${cmd.hint ? `<span class="open-superhuman-hint">${escapeHtml(cmd.hint)}</span>` : ""}${keys}</span>`;

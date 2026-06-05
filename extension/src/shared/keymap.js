@@ -75,5 +75,30 @@
     return entry ? entry.defaultKeys.slice() : [];
   }
 
-  window.OpenSuperhuman_KEYMAP = { DEFAULT_CONTEXTS, commands, keysFor };
+  function modLabel() {
+    const nav = typeof navigator !== "undefined" ? navigator : null;
+    const platform = String(
+      (nav && nav.userAgentData && nav.userAgentData.platform) ||
+        (nav && nav.platform) ||
+        (nav && nav.userAgent) ||
+        ""
+    );
+    return /mac|iphone|ipad|ipod/i.test(platform) ? "Cmd" : "Ctrl";
+  }
+
+  function displayKeyPart(part) {
+    if (part === "Mod") return modLabel();
+    if (part === "Escape") return "Esc";
+    return part;
+  }
+
+  function displayBinding(binding) {
+    return String(binding || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.split("+").map(displayKeyPart).join("+"))
+      .join(" ");
+  }
+
+  window.OpenSuperhuman_KEYMAP = { DEFAULT_CONTEXTS, commands, keysFor, displayBinding, displayKeyPart, modLabel };
 })();

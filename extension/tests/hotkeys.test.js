@@ -1329,6 +1329,38 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(w.__toolbarAction, "Move to", "v should open the move menu");
 }
 
+// Custom shortcuts can use Ctrl/Cmd/Shift modifiers, and remapping a command
+// removes the old default from the effective keymap.
+{
+  const w = load(listFixture(), "#inbox");
+  wireList(w);
+  w.OpenSuperhuman.storage.cache = {
+    ...w.OpenSuperhuman.storage.cache,
+    keyOverrides: { archive: ["Ctrl+e"] },
+  };
+
+  const bare = press(w, "e", { target: w.document.body });
+  assert.equal(bare.defaultPrevented, false, "bare e should no longer archive after archive is remapped");
+  assert.equal(w.__archivedRow, undefined, "bare e should not hit the old archive behavior after remap");
+
+  const modified = press(w, "e", { target: w.document.body, ctrlKey: true });
+  assert.equal(modified.defaultPrevented, true, "Ctrl+E should be claimed as the archive shortcut");
+  assert.equal(w.__archivedRow, "one", "Ctrl+E should run the remapped archive action");
+}
+
+{
+  const w = load(listFixture(), "#inbox");
+  wireList(w);
+  w.OpenSuperhuman.storage.cache = {
+    ...w.OpenSuperhuman.storage.cache,
+    keyOverrides: { archive: ["Shift+A"] },
+  };
+
+  const event = press(w, "a", { target: w.document.body, shiftKey: true });
+  assert.equal(event.defaultPrevented, true, "Shift plus a letter should be claimable as a custom shortcut");
+  assert.equal(w.__archivedRow, "one", "Shift+A should run the remapped archive action");
+}
+
 // Regression guard for the exact crash we just hit: a keydown whose target is the
 // document (focus on nothing) must not throw "el.getAttribute is not a function",
 // and the shortcut must still work.

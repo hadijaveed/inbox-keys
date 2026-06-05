@@ -229,13 +229,76 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   // ---- config modal -----------------------------------------------------
 
   let cfg = null;
+  let shortcutRecording = null;
 
-  function openConfig() {
+  function keymapCommands() {
+    return (window.OpenSuperhuman_KEYMAP && OpenSuperhuman_KEYMAP.commands) || [];
+  }
+
+  function shortcutKeysFor(cmd, overrides) {
+    if (window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.keysFor === "function") {
+      return OpenSuperhuman_KEYMAP.keysFor(cmd.id, overrides || {}) || [];
+    }
+    if (overrides && Object.prototype.hasOwnProperty.call(overrides, cmd.id)) return overrides[cmd.id] || [];
+    return cmd.defaultKeys || [];
+  }
+
+  function shortcutChips(binding) {
+    const display = window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function"
+      ? OpenSuperhuman_KEYMAP.displayBinding(binding)
+      : String(binding || "");
+    return display
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => `<kbd>${escapeAttr(part)}</kbd>`)
+      .join("");
+  }
+
+  function shortcutToken(e) {
+    let k = e.key;
+    if (k === " ") k = "Space";
+    if (k.length === 1) {
+      const mods = [];
+      if (e.metaKey) mods.push("Mod");
+      if (e.ctrlKey) mods.push("Ctrl");
+      if (e.altKey) mods.push("Alt");
+      if (e.shiftKey && /[a-zA-Z]/.test(k)) {
+        mods.push("Shift");
+        k = k.toUpperCase();
+      }
+      return mods.length ? mods.join("+") + "+" + k : k;
+    }
+    return k;
+  }
+
+  function contextsOverlap(a, b) {
+    const left = a && a.length ? a : OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS;
+    const right = b && b.length ? b : OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS;
+    if (left.includes("*") || right.includes("*")) return true;
+    return left.some((ctx) => right.includes(ctx));
+  }
+
+  function findShortcutCollision(binding, selfId, overrides) {
+    return keymapCommands().find((cmd) => {
+      if (cmd.id === selfId) return false;
+      if (!contextsOverlap(cmd.contexts, (keymapCommands().find((c) => c.id === selfId) || {}).contexts)) return false;
+      return shortcutKeysFor(cmd, overrides).includes(binding);
+    }) || null;
+  }
+
+  function openConfig(initialPane = "tabs") {
     if (cfg) {
-      closeConfig();
+      const pane = initialPane === "shortcuts" ? "shortcuts" : "tabs";
+      const tab = cfg.querySelector(`[data-settings-tab="${pane}"]`);
+      if (tab) tab.click();
+      else closeConfig();
       return;
     }
     const working = tabs().map((t) => ({ ...t }));
+    let workingKeyOverrides = { ...(storage.get("keyOverrides") || {}) };
+    let shortcutFilter = "";
+    let activePane = initialPane === "shortcuts" ? "shortcuts" : "tabs";
 
     cfg = document.createElement("div");
     cfg.className = "open-superhuman-overlay open-superhuman-overlay--open open-superhuman-cfg-overlay";
@@ -243,20 +306,51 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       <div class="open-superhuman-modal open-superhuman-cfg" role="dialog" aria-label="Configure tabs">
         <div class="open-superhuman-cfg-head">
           <div>
-            <div class="open-superhuman-cfg-title">Split inbox tabs</div>
-            <div class="open-superhuman-cfg-sub">Build a focused Gmail workspace. Keep 4-6 tabs for daily triage, then use search operators like <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>.</div>
+            <div class="open-superhuman-cfg-title">Open Superhuman settings</div>
+            <div class="open-superhuman-cfg-sub">Tune your split inbox and keyboard shortcuts without leaving Gmail. Search shortcuts by action, group, or key.</div>
           </div>
           <button class="open-superhuman-cfg-x" aria-label="Close">esc</button>
         </div>
-        <div class="open-superhuman-cfg-list"></div>
-        <div class="open-superhuman-cfg-actions">
-          <button class="open-superhuman-cfg-add">+ Add tab</button>
-          <button class="open-superhuman-cfg-reset">Reset defaults</button>
+        <div class="open-superhuman-cfg-tabs" role="tablist" aria-label="Open Superhuman settings sections">
+          <button class="open-superhuman-cfg-tab" type="button" role="tab" data-settings-tab="tabs">Tabs</button>
+          <button class="open-superhuman-cfg-tab" type="button" role="tab" data-settings-tab="shortcuts">Keyboard shortcuts</button>
         </div>
-        <div class="open-superhuman-cfg-suggest-label">Presets</div>
-        <div class="open-superhuman-cfg-suggest"></div>
+        <div class="open-superhuman-cfg-body">
+          <section class="open-superhuman-cfg-panel open-superhuman-cfg-panel--tabs" data-settings-panel="tabs">
+            <div class="open-superhuman-cfg-section-head">
+              <div>
+                <div class="open-superhuman-cfg-section-title">Split inbox tabs</div>
+                <div class="open-superhuman-cfg-section-sub">Keep 4-6 tabs for daily triage. Use Gmail operators like <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>.</div>
+              </div>
+            </div>
+            <div class="open-superhuman-cfg-list"></div>
+            <div class="open-superhuman-cfg-actions">
+              <button class="open-superhuman-cfg-add">+ Add tab</button>
+              <button class="open-superhuman-cfg-reset">Reset defaults</button>
+            </div>
+            <div class="open-superhuman-cfg-suggest-label">Presets</div>
+            <div class="open-superhuman-cfg-suggest"></div>
+          </section>
+          <section class="open-superhuman-cfg-panel open-superhuman-cfg-panel--keys" data-settings-panel="shortcuts">
+            <div class="open-superhuman-cfg-section-head open-superhuman-shortcuts-head">
+              <div>
+                <div class="open-superhuman-cfg-section-title">Keyboard shortcuts</div>
+                <div class="open-superhuman-cfg-section-sub">Click an editable shortcut, then press the new key or combo. Shift, Ctrl, Alt, and Cmd combos are supported. Built-in shortcuts are read-only.</div>
+              </div>
+              <button class="open-superhuman-shortcut-reset-all">Reset shortcuts</button>
+            </div>
+            <div class="open-superhuman-shortcut-tools">
+              <div class="open-superhuman-shortcut-search-wrap">
+                <span class="open-superhuman-shortcut-search-icon" aria-hidden="true">⌕</span>
+                <input class="open-superhuman-shortcut-search" type="search" placeholder="Search shortcuts, actions, or keys..." autocomplete="off" />
+              </div>
+              <div class="open-superhuman-shortcut-count"></div>
+            </div>
+            <div class="open-superhuman-shortcut-list"></div>
+          </section>
+        </div>
         <div class="open-superhuman-cfg-foot">
-          <span class="open-superhuman-cfg-hint">Good defaults: Inbox, Unread, Important, Starred, Attachments. Use <code>in:inbox</code> for tabs you want to clear with Archive.</span>
+          <span class="open-superhuman-cfg-hint"></span>
           <span>
             <button class="open-superhuman-btn open-superhuman-btn--ghost open-superhuman-cfg-cancel">Cancel</button>
             <button class="open-superhuman-btn open-superhuman-cfg-save">Save</button>
@@ -267,6 +361,29 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
     const list = cfg.querySelector(".open-superhuman-cfg-list");
     const suggestWrap = cfg.querySelector(".open-superhuman-cfg-suggest");
+    const shortcutList = cfg.querySelector(".open-superhuman-shortcut-list");
+    const shortcutSearch = cfg.querySelector(".open-superhuman-shortcut-search");
+    const shortcutCount = cfg.querySelector(".open-superhuman-shortcut-count");
+    const hint = cfg.querySelector(".open-superhuman-cfg-hint");
+
+    function setSettingsPane(pane) {
+      activePane = pane === "shortcuts" ? "shortcuts" : "tabs";
+      cfg.querySelectorAll("[data-settings-tab]").forEach((tab) => {
+        const selected = tab.dataset.settingsTab === activePane;
+        tab.classList.toggle("open-superhuman-cfg-tab--active", selected);
+        tab.setAttribute("aria-selected", selected ? "true" : "false");
+        tab.tabIndex = selected ? 0 : -1;
+      });
+      cfg.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+        const selected = panel.dataset.settingsPanel === activePane;
+        panel.classList.toggle("open-superhuman-cfg-panel--active", selected);
+        panel.hidden = !selected;
+      });
+      hint.innerHTML =
+        activePane === "shortcuts"
+          ? "Tip: shortcut changes save with this modal. Press <code>Esc</code> while recording to cancel."
+          : "Tip: tab changes save with this modal. Use <code>in:inbox</code> for tabs you want to clear with Archive.";
+    }
 
     function rowFor(tab, i) {
       const row = document.createElement("div");
@@ -291,6 +408,177 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       list.innerHTML = "";
       working.forEach((tab, i) => list.appendChild(rowFor(tab, i)));
       renderSuggestions();
+    }
+
+    function effectiveShortcutKeys(cmd) {
+      return shortcutKeysFor(cmd, workingKeyOverrides);
+    }
+
+    function renderShortcuts() {
+      const filter = shortcutFilter.trim().toLowerCase();
+      const groups = [];
+      const byGroup = new Map();
+      let shown = 0;
+      keymapCommands().forEach((cmd) => {
+        const keys = effectiveShortcutKeys(cmd);
+        const displayKeys = window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function"
+          ? keys.map((key) => OpenSuperhuman_KEYMAP.displayBinding(key))
+          : keys;
+        const hay = `${cmd.title} ${cmd.group || ""} ${keys.join(" ")} ${displayKeys.join(" ")} ${(cmd.contexts || []).join(" ")}`.toLowerCase();
+        if (filter && !hay.includes(filter)) return;
+        const group = cmd.group || "Other";
+        if (!byGroup.has(group)) {
+          byGroup.set(group, []);
+          groups.push(group);
+        }
+        byGroup.get(group).push(cmd);
+      });
+      shortcutList.innerHTML = "";
+      groups.forEach((group) => {
+        const head = document.createElement("div");
+        head.className = "open-superhuman-shortcut-group";
+        head.textContent = group;
+        shortcutList.appendChild(head);
+        byGroup.get(group).forEach((cmd) => {
+          shown++;
+          shortcutList.appendChild(shortcutRow(cmd));
+        });
+      });
+      if (!shown) {
+        const empty = document.createElement("div");
+        empty.className = "open-superhuman-shortcut-empty";
+        empty.textContent = "No shortcuts match your search.";
+        shortcutList.appendChild(empty);
+      }
+      shortcutCount.textContent = shown ? `${shown} shown` : "0 shown";
+    }
+
+    function shortcutRow(cmd) {
+      const row = document.createElement("div");
+      row.className = "open-superhuman-shortcut-row" + (cmd.fixed ? " open-superhuman-shortcut-row--fixed" : "");
+      row.dataset.id = cmd.id;
+
+      const meta = document.createElement("div");
+      meta.className = "open-superhuman-shortcut-meta";
+      const title = document.createElement("div");
+      title.className = "open-superhuman-shortcut-title";
+      title.textContent = cmd.title;
+      const context = document.createElement("div");
+      context.className = "open-superhuman-shortcut-context";
+      context.textContent = (cmd.contexts || []).join(", ") || "all contexts";
+      meta.appendChild(title);
+      meta.appendChild(context);
+      row.appendChild(meta);
+
+      const keys = document.createElement("button");
+      keys.type = "button";
+      keys.className = "open-superhuman-shortcut-keys";
+      keys.disabled = !!cmd.fixed;
+      const effective = effectiveShortcutKeys(cmd);
+      keys.innerHTML = effective.length
+        ? effective.map(shortcutChips).join('<span class="open-superhuman-shortcut-or">or</span>')
+        : '<span class="open-superhuman-shortcut-none">not set</span>';
+      if (!cmd.fixed) {
+        keys.title = "Record a new shortcut";
+        keys.addEventListener("click", () => startShortcutRecording(cmd, row, keys));
+      } else {
+        keys.title = "Built-in shortcut";
+      }
+      row.appendChild(keys);
+
+      const reset = document.createElement("button");
+      reset.type = "button";
+      reset.className = "open-superhuman-shortcut-reset";
+      reset.textContent = "Reset";
+      reset.disabled = cmd.fixed || !Array.isArray(workingKeyOverrides[cmd.id]);
+      reset.addEventListener("click", () => {
+        delete workingKeyOverrides[cmd.id];
+        renderShortcuts();
+      });
+      row.appendChild(reset);
+
+      return row;
+    }
+
+    function startShortcutRecording(cmd, row, keys) {
+      cancelShortcutRecording(false);
+      shortcutRecording = { cmd, row, keys, parts: [], chordTimer: null, cancel: cancelShortcutRecording };
+      row.classList.add("open-superhuman-shortcut-row--recording");
+      keys.innerHTML = '<span class="open-superhuman-shortcut-listening">Press key or combo...</span>';
+      document.addEventListener("keydown", onShortcutRecordKey, true);
+    }
+
+    function renderShortcutRecording() {
+      if (!shortcutRecording) return;
+      const chips = shortcutRecording.parts.map(shortcutChips).join("");
+      shortcutRecording.keys.innerHTML = chips || '<span class="open-superhuman-shortcut-listening">Press key or combo...</span>';
+    }
+
+    function cancelShortcutRecording(rerender = true) {
+      if (!shortcutRecording) return;
+      document.removeEventListener("keydown", onShortcutRecordKey, true);
+      if (shortcutRecording.chordTimer) clearTimeout(shortcutRecording.chordTimer);
+      shortcutRecording = null;
+      if (rerender) renderShortcuts();
+    }
+
+    function onShortcutRecordKey(e) {
+      if (!shortcutRecording) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.key === "Escape") {
+        cancelShortcutRecording();
+        return;
+      }
+      if (e.key === "Enter") {
+        commitShortcutRecording();
+        return;
+      }
+      if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+      const token = shortcutToken(e);
+      if (!token) return;
+      if (shortcutRecording.parts.length === 0 && token === "g") {
+        shortcutRecording.parts.push("g");
+        renderShortcutRecording();
+        shortcutRecording.chordTimer = setTimeout(() => {
+          shortcutRecording.chordTimer = null;
+          commitShortcutRecording();
+        }, 800);
+        return;
+      }
+      if (shortcutRecording.parts[0] === "g" && shortcutRecording.chordTimer) {
+        clearTimeout(shortcutRecording.chordTimer);
+        shortcutRecording.chordTimer = null;
+        shortcutRecording.parts.push(token);
+      } else {
+        shortcutRecording.parts = [token];
+      }
+      renderShortcutRecording();
+      commitShortcutRecording();
+    }
+
+    function commitShortcutRecording() {
+      if (!shortcutRecording || !shortcutRecording.parts.length) return;
+      const id = shortcutRecording.cmd.id;
+      const binding = shortcutRecording.parts.join(" ");
+      if (shortcutRecording.chordTimer) {
+        clearTimeout(shortcutRecording.chordTimer);
+        shortcutRecording.chordTimer = null;
+      }
+      const collision = findShortcutCollision(binding, id, workingKeyOverrides);
+      if (collision) {
+        if (collision.fixed) {
+          OpenSuperhuman.toast(`Shortcut reserved for ${collision.title}`, "warn");
+          cancelShortcutRecording();
+          return;
+        }
+        workingKeyOverrides = {
+          ...workingKeyOverrides,
+          [collision.id]: effectiveShortcutKeys(collision).filter((key) => key !== binding),
+        };
+      }
+      workingKeyOverrides = { ...workingKeyOverrides, [id]: [binding] };
+      cancelShortcutRecording();
     }
 
     function addTab(name, query) {
@@ -352,11 +640,25 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     }
 
     renderRows();
+    renderShortcuts();
+    setSettingsPane(activePane);
 
+    cfg.querySelectorAll("[data-settings-tab]").forEach((tab) => {
+      tab.addEventListener("click", () => setSettingsPane(tab.dataset.settingsTab));
+    });
     cfg.querySelector(".open-superhuman-cfg-add").addEventListener("click", () => addTab("", ""));
     cfg.querySelector(".open-superhuman-cfg-reset").addEventListener("click", () => {
       working.splice(0, working.length, ...OpenSuperhuman.DEFAULTS.tabs.map((t) => ({ ...t })));
       renderRows();
+    });
+    cfg.querySelector(".open-superhuman-shortcut-search").addEventListener("input", (e) => {
+      shortcutFilter = e.target.value || "";
+      renderShortcuts();
+    });
+    cfg.querySelector(".open-superhuman-shortcut-reset-all").addEventListener("click", () => {
+      workingKeyOverrides = {};
+      cancelShortcutRecording(false);
+      renderShortcuts();
     });
     cfg.querySelector(".open-superhuman-cfg-cancel").addEventListener("click", closeConfig);
     cfg.querySelector(".open-superhuman-cfg-x").addEventListener("click", closeConfig);
@@ -364,10 +666,10 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       const cleaned = working
         .map((t) => ({ ...t, name: (t.name || "").trim() }))
         .filter((t) => t.type === "inbox" || (t.name && (t.query || "").trim()));
-      await storage.set({ tabs: cleaned });
+      await storage.set({ tabs: cleaned, keyOverrides: workingKeyOverrides });
       closeConfig();
       rebuild();
-      OpenSuperhuman.toast("Tabs saved");
+      OpenSuperhuman.toast("Settings saved");
     });
     cfg.addEventListener("mousedown", (e) => {
       if (e.target === cfg) closeConfig();
@@ -376,6 +678,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function onCfgKey(e) {
+    if (shortcutRecording) return;
     if (e.key === "Escape" && cfg) {
       e.preventDefault();
       e.stopPropagation();
@@ -384,6 +687,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function closeConfig() {
+    if (shortcutRecording && typeof shortcutRecording.cancel === "function") shortcutRecording.cancel(false);
     document.removeEventListener("keydown", onCfgKey, true);
     if (cfg) cfg.remove();
     cfg = null;

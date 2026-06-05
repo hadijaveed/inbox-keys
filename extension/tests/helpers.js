@@ -35,6 +35,7 @@ function makeWindow(bodyHtml) {
     window.__openedWindow = args;
     return { focus() {} };
   };
+  window.requestAnimationFrame = (cb) => window.setTimeout(cb, 0);
 
   // Every element jsdom renders has a 0x0 box; getContext's isVisible() treats
   // 0x0 as hidden. Make present elements count as visible.

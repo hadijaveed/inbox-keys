@@ -123,6 +123,36 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     chordTimer = null;
   }
 
+  function keyToken(e) {
+    let k = e.key;
+    if (k === " ") k = "Space";
+    if (k.length === 1) {
+      const mods = [];
+      if (e.metaKey) mods.push("Mod");
+      if (e.ctrlKey) mods.push("Ctrl");
+      if (e.altKey) mods.push("Alt");
+      if (e.shiftKey && /[a-zA-Z]/.test(k)) {
+        mods.push("Shift");
+        k = k.toUpperCase();
+      } else if (/[a-zA-Z]/.test(k)) {
+        k = k.toLowerCase();
+      }
+      return mods.length ? mods.join("+") + "+" + k : k;
+    }
+    return k;
+  }
+
+  function keyAliases(token) {
+    const aliases = [token];
+    if (token.startsWith("Ctrl+")) aliases.push("Mod+" + token.slice(5));
+    return aliases;
+  }
+
+  function commandHasKey(id, binding) {
+    if (!window.OpenSuperhuman_KEYMAP || typeof OpenSuperhuman_KEYMAP.keysFor !== "function") return true;
+    return OpenSuperhuman_KEYMAP.keysFor(id, storage.get("keyOverrides") || {}).includes(binding);
+  }
+
   // Calendar key: "0" toggles Gmail's side calendar panel; a quick "0 0" opens
   // calendar in a new tab. Top-level views only (handled by the caller).
   function handleZero() {
@@ -143,6 +173,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   function runChordOrKey(e, ctx) {
     const map = commands.byKeys();
     const key = e.key.toLowerCase();
+    const token = keyToken(e);
+    const tokens = keyAliases(token);
 
     // "g" + digit -> jump straight to that signed-in account (/mail/u/N).
     // First-class so every account 0–8 is reachable even before we've learned
@@ -170,8 +202,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     const inCtx = map.filter((m) => appliesIn(m, ctx));
 
     // Is this key the start of any (in-context) chord?
-    const startsChord = inCtx.some((m) => m.keys.startsWith(key + " "));
-    const single = inCtx.find((m) => m.keys === key);
+    const startsChord = !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && inCtx.some((m) => m.keys.startsWith(key + " "));
+    const single = inCtx.find((m) => tokens.includes(m.keys));
 
     if (startsChord && !single) {
       chordPrefix = key;
@@ -297,17 +329,17 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       }
     }
 
-    // Below here we never fire while typing or with modifier chords (except the
-    // Shift cases we special-case explicitly).
+    // Below here we never fire while typing. Modifier chords are allowed for
+    // user-configured shortcuts as long as focus is outside editable fields.
     if (isEditable(e.target) && !canOverrideEditable(e, ctx)) return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const hasNonShiftModifier = e.metaKey || e.ctrlKey || e.altKey;
 
     // Thread view: j/k move between conversations. Arrows move the visible cursor
     // through message cards plus explicit expansion controls inside the current
     // thread; when there is nowhere else to move, arrows scroll the reading pane.
     // Enter opens a collapsed focused message, then reply-alls once expanded.
     // "o" always toggles the focused message/control.
-    if (ctx === "threadView") {
+    if (ctx === "threadView" && !hasNonShiftModifier) {
       if (e.key === "j") { consume(e); gmail.nextThread(); return; }
       if (e.key === "k") { consume(e); gmail.prevThread(); return; }
       if (e.key === "ArrowDown") { consume(e); if (!threadnav.moveArrow(1)) gmail.threadScrollBy(1); return; }
@@ -316,10 +348,10 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       if (e.key === "PageUp") { consume(e); gmail.threadScrollBy(-1, 0.9); return; }
       if (e.key === "Enter") { consume(e); threadnav.activateFocused(); return; }
       if (e.key.toLowerCase() === "o" && e.shiftKey) { consume(e); threadnav.expandAllToggle(); return; }
-      if (e.key.toLowerCase() === "o") { consume(e); threadnav.toggleFocused(); return; }
+      if (e.key.toLowerCase() === "o" && commandHasKey("expand-message", "o")) { consume(e); threadnav.toggleFocused(); return; }
       if (e.key === ":" || e.key === ";") { consume(e); threadnav.expandAllToggle(); return; }
-      if (e.key.toLowerCase() === "e" && !e.shiftKey) { consume(e); gmail.archiveThread(); return; }
-      if (e.key.toLowerCase() === "r" && !e.shiftKey) { consume(e); gmail.replyToThread(); return; }
+      if (e.key.toLowerCase() === "e" && !e.shiftKey && commandHasKey("archive", "e")) { consume(e); gmail.archiveThread(); return; }
+      if (e.key.toLowerCase() === "r" && !e.shiftKey && commandHasKey("reply", "r")) { consume(e); gmail.replyToThread(); return; }
     }
 
     // Shift+G -> bottom of the list. Special-cased BEFORE chord logic, otherwise
@@ -329,6 +361,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     if (
       e.shiftKey &&
       e.key.toLowerCase() === "g" &&
+      !hasNonShiftModifier &&
       !chordPrefix &&
       ctx === "inboxList"
     ) {
@@ -337,21 +370,21 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       return;
     }
 
-    if (e.shiftKey && e.key.toLowerCase() === "e" && (ctx === "inboxList" || ctx === "threadView")) {
+    if (e.shiftKey && !hasNonShiftModifier && e.key.toLowerCase() === "e" && (ctx === "inboxList" || ctx === "threadView")) {
       consume(e);
       if (ctx === "inboxList" && listnav.withSelection) listnav.withSelection(() => gmail.markNotDone());
       else gmail.markNotDone();
       return;
     }
 
-    if (e.shiftKey && e.key.toLowerCase() === "m" && (ctx === "inboxList" || ctx === "threadView")) {
+    if (e.shiftKey && !hasNonShiftModifier && e.key.toLowerCase() === "m" && (ctx === "inboxList" || ctx === "threadView")) {
       consume(e);
       if (ctx === "inboxList" && listnav.withSelection) listnav.withSelection(() => gmail.mute());
       else gmail.mute();
       return;
     }
 
-    if (e.shiftKey && e.key.toLowerCase() === "y" && (ctx === "inboxList" || ctx === "threadView")) {
+    if (e.shiftKey && !hasNonShiftModifier && e.key.toLowerCase() === "y" && (ctx === "inboxList" || ctx === "threadView")) {
       consume(e);
       if (ctx === "inboxList" && listnav.withSelection) listnav.withSelection(() => gmail.removeAllLabels());
       else gmail.removeAllLabels();
@@ -362,6 +395,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     // thread), not mid-chord (so "g 0" account-switch still works), not editable.
     if (
       !chordPrefix &&
+      !hasNonShiftModifier &&
       e.key === "0" &&
       storage.get("calendarEnabled") !== false &&
       (ctx === "inboxList" || ctx === "unknown") &&
@@ -375,7 +409,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     // Inbox list: arrow / j / k move our keyboard cursor; Shift+Arrow grows a
     // selection; Enter opens the cursor thread; x toggles its checkbox; e archives
     // (the selected set, or the cursor row).
-    if (ctx === "inboxList") {
+    if (ctx === "inboxList" && !hasNonShiftModifier) {
       if (e.key === "Escape") {
         // End a multi-select without clicking away; otherwise let Gmail have it.
         if (listnav.selectedRows().length) { consume(e); listnav.clearSelection(); return; }
@@ -387,7 +421,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       if (e.key === "k") { consume(e); listnav.move(-1); return; }
       if (e.key === "Enter") { consume(e); listnav.open(); return; }
       if (e.key === "x") { consume(e); listnav.toggleSelect(); return; }
-      if (e.key.toLowerCase() === "e" && !e.shiftKey) { consume(e); listnav.archive(); return; }
+      if (e.key.toLowerCase() === "e" && !e.shiftKey && commandHasKey("archive", "e")) { consume(e); listnav.archive(); return; }
     }
 
     runChordOrKey(e, ctx);

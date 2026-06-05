@@ -121,10 +121,10 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     ];
   }
 
-  // Split-inbox tabs: a "Go to <tab>" row per saved tab, plus the config opener.
+  // Split-inbox tabs: a "Go to <tab>" row per saved tab.
   function tabCommands() {
     const list = (tabs && tabs.list && tabs.list()) || [];
-    const cmds = list.map((tab) => ({
+    return list.map((tab) => ({
       id: `tab-${tab.id}`,
       title: `Go to tab: ${tab.name}`,
       hint: tab.type === "inbox" ? "Inbox" : tab.query,
@@ -133,15 +133,35 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
       run: () => tabs.navigate(tab),
     }));
-    cmds.push({
-      id: "tabs-config",
-      title: "Configure split inbox tabs…",
-      group: "Tabs",
-      keys: [],
-      contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
-      run: () => tabs.openConfig(),
-    });
-    return cmds;
+  }
+
+  function settingsCommands() {
+    return [
+      {
+        id: "open-superhuman-settings",
+        title: "Open Superhuman settings...",
+        group: "Settings",
+        keys: [],
+        contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
+        run: () => tabs.openConfig("tabs"),
+      },
+      {
+        id: "tabs-config",
+        title: "Configure split inbox tabs...",
+        group: "Settings",
+        keys: [],
+        contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
+        run: () => tabs.openConfig("tabs"),
+      },
+      {
+        id: "shortcuts-config",
+        title: "Configure keyboard shortcuts...",
+        group: "Settings",
+        keys: [],
+        contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
+        run: () => tabs.openConfig("shortcuts"),
+      },
+    ];
   }
 
   // Account switching: g 0 / g 1 / g 2 … map to /mail/u/N. The engine binds
@@ -184,7 +204,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
   // Built fresh each time the palette opens so tab/account/override state is current.
   function all() {
-    return [...buildBase(), ...tabCommands(), ...accountCommands(), ...extra];
+    return [...buildBase(), ...tabCommands(), ...settingsCommands(), ...accountCommands(), ...extra];
   }
 
   // Allow late registration (e.g. from custom user config later).
