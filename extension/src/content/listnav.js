@@ -37,11 +37,36 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return cursor;
   }
 
-  function paint(list) {
+  function paint(list, scrollBlock = "nearest") {
     const r = list || rows();
     r.forEach((row, i) => row.classList.toggle(CURSOR_CLASS, i === cursor));
     const el = r[cursor];
-    if (el) el.scrollIntoView({ block: "nearest" });
+    if (el) el.scrollIntoView({ block: scrollBlock });
+  }
+
+  function focusEdge(dir) {
+    const r = rows();
+    if (!r.length) return false;
+    keyNavSeq = ++evSeq;
+    anchor = -1;
+    hoverRow = null;
+    cursor = dir < 0 ? 0 : r.length - 1;
+    paint(r, dir < 0 ? "start" : "end");
+    return true;
+  }
+
+  function focusTop() {
+    return focusEdge(-1);
+  }
+
+  function focusBottom() {
+    return focusEdge(1);
+  }
+
+  function syncEdgeAfterScroll(dir) {
+    focusEdge(dir);
+    setTimeout(() => focusEdge(dir), 80);
+    setTimeout(() => focusEdge(dir), 220);
   }
 
   function move(dir) {
@@ -400,5 +425,5 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   // A fresh list (navigation, account switch) should start the cursor over.
   window.addEventListener("hashchange", reset);
 
-  OpenSuperhuman.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, withSelection, withTemporarySelection, reset };
+  OpenSuperhuman.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, withSelection, withTemporarySelection, reset, focusTop, focusBottom, syncEdgeAfterScroll };
 })();

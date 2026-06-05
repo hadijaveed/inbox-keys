@@ -16,6 +16,7 @@
     { id: "forward", title: "Forward", group: "Compose", defaultKeys: ["f"], contexts: ["threadView"], fixed: false },
     { id: "open-link-or-attachment", title: "Open link or attachment", group: "Compose", defaultKeys: ["Mod+O"], contexts: ["threadView"], fixed: true },
     { id: "attach-file", title: "Attach file", group: "Compose", defaultKeys: ["Mod+U"], contexts: ["compose"], fixed: true },
+    { id: "discard-draft", title: "Discard draft", group: "Compose", defaultKeys: ["Mod+Shift+D"], contexts: ["compose", "threadView"], fixed: true },
 
     // Triage
     { id: "archive", title: "Archive", group: "Triage", defaultKeys: ["e"], contexts: ["inboxList", "threadView"], fixed: false },

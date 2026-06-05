@@ -292,6 +292,11 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       gmail.attachFile();
       return;
     }
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === "d" && (ctx === "compose" || inComposeBody)) {
+      consume(e);
+      gmail.discardDraft();
+      return;
+    }
 
     // Tab / Shift+Tab: cycle split-inbox tabs from any top-level Gmail list
     // surface. Gmail can leave focus in the search input, or briefly report an
@@ -367,6 +372,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     ) {
       consume(e);
       gmail.listScrollBottom();
+      if (listnav.syncEdgeAfterScroll) listnav.syncEdgeAfterScroll(1);
       return;
     }
 

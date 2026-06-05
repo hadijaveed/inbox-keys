@@ -284,6 +284,29 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return realClick(findControl([/^Attach files?$/i, /^Attach$/i, /\bAttach files?\b/i]));
   }
 
+  function discardDraft() {
+    const body = composeBody();
+    const surfaces = [
+      body && body.closest('[role="dialog"], [role="listitem"], .M9, .AD, .nH'),
+      ...Array.from(document.querySelectorAll('[role="dialog"], [role="listitem"], .M9, .AD, .nH')).filter(isVisible),
+      document,
+    ].filter(Boolean);
+    let btn = null;
+    for (const surface of surfaces) {
+      btn =
+        labeledButton([/^Discard draft$/i, /^Discard$/i, /^Delete draft$/i], surface) ||
+        findControl([/^Discard draft$/i, /^Discard$/i, /^Delete draft$/i], surface) ||
+        Array.from(
+          surface.querySelectorAll('[aria-label*="Discard"], [data-tooltip*="Discard"], [title*="Discard"], [aria-label*="Delete draft"], [data-tooltip*="Delete draft"], [title*="Delete draft"]')
+        ).filter(isVisible)[0] ||
+        null;
+      if (btn) break;
+    }
+    if (btn) return realClick(btn);
+    if (OpenSuperhuman.toast) OpenSuperhuman.toast("No draft discard button found", { kind: "warn" });
+    return false;
+  }
+
   function markReadUnread() {
     return realClick(findControl([/^Mark as read$/i, /^Mark as unread$/i, /^Mark read$/i, /^Mark unread$/i]));
   }
@@ -707,6 +730,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     undo,
     toggleStar,
     attachFile,
+    discardDraft,
     markReadUnread,
     snooze,
     markNotDone,

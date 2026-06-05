@@ -42,8 +42,9 @@ function makeWindow(bodyHtml) {
   window.Element.prototype.getBoundingClientRect = function () {
     return { width: 120, height: 20, top: 0, left: 0, right: 120, bottom: 20, x: 0, y: 0, toJSON() {} };
   };
-  window.Element.prototype.scrollIntoView = function () {
+  window.Element.prototype.scrollIntoView = function (opts) {
     window.__lastScrollIntoView = this;
+    window.__lastScrollIntoViewOptions = opts;
   };
 
   return window;

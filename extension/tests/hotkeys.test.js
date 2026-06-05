@@ -471,6 +471,30 @@ function wireList(w) {
   assert.equal(w.__archivedRow, "one", "e should archive the cursor row");
 }
 
+// g g and Shift+G should move both the Gmail list scroll position and our
+// keyboard cursor. Otherwise the next j/k/e/Enter jumps back to a stale row.
+{
+  const w = load(listFixture(), "#inbox");
+  wireList(w);
+  const main = w.document.querySelector('[role="main"]');
+  main.style.overflowY = "scroll";
+  Object.defineProperty(main, "scrollHeight", { value: 5000, configurable: true });
+  Object.defineProperty(main, "clientHeight", { value: 500, configurable: true });
+
+  const bottom = press(w, "G", { target: w.document.body, shiftKey: true });
+  assert.equal(bottom.defaultPrevented, true, "Shift+G should be claimed in the list");
+  assert.equal(main.scrollTop, 5000, "Shift+G should scroll the list container to the bottom");
+  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "Shift+G should move the cursor to the last rendered row");
+  assert.equal(w.__lastScrollIntoViewOptions.block, "end", "bottom jump should align the cursor at the bottom edge");
+
+  press(w, "g", { target: w.document.body });
+  const top = press(w, "g", { target: w.document.body });
+  assert.equal(top.defaultPrevented, true, "g g should be claimed in the list");
+  assert.equal(main.scrollTop, 0, "g g should scroll the list container to the top");
+  assert.equal(rows(w)[0].classList.contains("open-superhuman-cursor"), true, "g g should move the cursor to the first rendered row");
+  assert.equal(w.__lastScrollIntoViewOptions.block, "start", "top jump should align the cursor at the top edge");
+}
+
 // Tab and Shift+Tab cycle split-inbox tabs only from the list context.
 {
   const w = load(listFixture(), "#inbox");
@@ -1296,6 +1320,49 @@ function wireInlineActions(w, opts = {}) {
 
   assert.equal(event.defaultPrevented, true, "Cmd+U should be claimed in compose");
   assert.equal(w.__attached, true, "Cmd+U should click Attach files");
+}
+
+// Discard draft is Cmd/Ctrl+Shift+D in compose.
+{
+  const w = load(`
+    <div role="dialog">
+      <div aria-label="Message Body" contenteditable="true" role="textbox"></div>
+      <button aria-label="Discard draft">Discard draft</button>
+    </div>`, "#inbox");
+  const body = w.document.querySelector('[contenteditable="true"]');
+  body.focus();
+  w.document.querySelector('[aria-label="Discard draft"]').addEventListener("click", () => {
+    w.__discardedDraft = true;
+  });
+
+  const entry = w.OpenSuperhuman_KEYMAP.commands.find((cmd) => cmd.id === "discard-draft");
+  assert.equal(entry.defaultKeys[0], "Mod+Shift+D", "discard draft should default to Cmd/Ctrl+Shift+D");
+
+  const event = press(w, "d", { target: body, metaKey: true, shiftKey: true });
+
+  assert.equal(event.defaultPrevented, true, "Cmd+Shift+D should be claimed in compose");
+  assert.equal(w.__discardedDraft, true, "Cmd+Shift+D should click Discard draft");
+}
+
+{
+  const w = load(`
+    <div class="M9" role="dialog">
+      <div class="aO7"><div aria-label="Message Body" contenteditable="true" role="textbox"></div></div>
+      <div class="gU">
+        <div class="T-I J-J5-Ji aFh" data-tooltip="Discard draft"></div>
+      </div>
+    </div>`, "#inbox");
+  const body = w.document.querySelector('[contenteditable="true"]');
+  const discard = w.document.querySelector('[data-tooltip="Discard draft"]');
+  body.focus();
+  discard.addEventListener("click", () => {
+    w.__discardedIconDraft = true;
+  });
+
+  const event = press(w, "d", { target: body, metaKey: true, shiftKey: true });
+
+  assert.equal(event.defaultPrevented, true, "Cmd+Shift+D should be claimed for Gmail's icon-style discard button");
+  assert.equal(w.__discardedIconDraft, true, "Cmd+Shift+D should click Gmail's icon-style Discard draft control");
 }
 
 // Label and move shortcuts drive Gmail toolbar controls.

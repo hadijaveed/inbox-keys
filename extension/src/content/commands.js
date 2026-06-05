@@ -61,6 +61,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       cmd("forward", () => gmail.forwardThread()),
       cmd("open-link-or-attachment", () => gmail.openLinkOrAttachment(OpenSuperhuman.threadnav.currentCard() || document)),
       cmd("attach-file", () => gmail.attachFile()),
+      cmd("discard-draft", () => gmail.discardDraft()),
 
       // Triage (archive is context-aware: open thread vs. selected/cursor rows)
       cmd("archive", () => (gmail.getContext() === "threadView" ? gmail.archiveThread() : OpenSuperhuman.listnav.archive())),
@@ -93,8 +94,14 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       cmd("go-settings", nav("settings/general")),
 
       // List scrolling + thread/tab navigation (engine helpers)
-      cmd("go-top", () => gmail.listScrollTop()),
-      cmd("go-bottom", () => gmail.listScrollBottom()),
+      cmd("go-top", () => {
+        gmail.listScrollTop();
+        if (OpenSuperhuman.listnav && OpenSuperhuman.listnav.syncEdgeAfterScroll) OpenSuperhuman.listnav.syncEdgeAfterScroll(-1);
+      }),
+      cmd("go-bottom", () => {
+        gmail.listScrollBottom();
+        if (OpenSuperhuman.listnav && OpenSuperhuman.listnav.syncEdgeAfterScroll) OpenSuperhuman.listnav.syncEdgeAfterScroll(1);
+      }),
       cmd("expand-message", () => OpenSuperhuman.threadnav.toggleFocused()),
       cmd("expand-all", () => OpenSuperhuman.threadnav.expandAllToggle()),
       cmd("next-tab", () => tabs.next()),
