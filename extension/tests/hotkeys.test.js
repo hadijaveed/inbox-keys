@@ -495,6 +495,50 @@ function wireList(w) {
   assert.equal(w.__lastScrollIntoViewOptions.block, "start", "top jump should align the cursor at the top edge");
 }
 
+// Escape back from a thread must restore the list position: same cursor row,
+// same scroll offset. Gmail re-renders the list at the TOP after the hash
+// navigates back, and the old blanket reset() on every hashchange threw the
+// cursor away too — the "Escape sends me back to the top" bug.
+{
+  const w = load(listFixture(), "#inbox");
+  wireList(w);
+  // Sync the hashchange tracker to the test's starting hash (load() sets the
+  // hash without firing the event, which jsdom doesn't do for us).
+  w.dispatchEvent(new w.Event("hashchange"));
+  const main = w.document.querySelector('[role="main"]');
+  main.style.overflowY = "scroll";
+  Object.defineProperty(main, "scrollHeight", { value: 5000, configurable: true });
+  Object.defineProperty(main, "clientHeight", { value: 500, configurable: true });
+
+  // Cursor on the second row, scrolled partway down the list.
+  press(w, "j", { target: w.document.body });
+  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "j moves the cursor to row two");
+  main.scrollTop = 1234;
+
+  // Open a thread: the hash dives and Gmail renders the conversation.
+  w.location.hash = "#inbox/" + ID;
+  w.dispatchEvent(new w.Event("hashchange"));
+  const msg = w.document.createElement("div");
+  msg.setAttribute("data-message-id", "m1");
+  main.appendChild(msg);
+
+  // Escape goes back; Gmail tears down the thread and re-renders the list at
+  // the top.
+  const esc = press(w, "Escape", { target: w.document.body });
+  assert.equal(esc.defaultPrevented, true, "Escape is claimed in thread view");
+  assert.equal(w.location.hash, "#inbox", "Escape returns to the parent list");
+  msg.remove();
+  main.scrollTop = 0; // what Gmail does to the restored list
+  w.dispatchEvent(new w.Event("hashchange"));
+
+  assert.equal(main.scrollTop, 1234, "the list scroll offset is restored after Escape");
+  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "the cursor is restored to the row it was on");
+
+  // A later j continues from the restored row, not from the top.
+  press(w, "j", { target: w.document.body });
+  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "j continues from the restored cursor (already on the last row)");
+}
+
 // Shift+N / Shift+P page the message list via Gmail's Older/Newer pager. Works
 // from the list, and from search results where Gmail keeps the search box focused.
 {

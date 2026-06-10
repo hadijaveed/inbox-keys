@@ -30,5 +30,5 @@
     if (msg && msg.type === "open-superhuman:open-tabs-config") tabs.openConfig();
   });
 
-  console.log("[Open Superhuman] ready on", location.host, "build: paging-search-labels");
+  console.log("[Open Superhuman] ready on", location.host, "build: escape-restores-list-position");
 })();

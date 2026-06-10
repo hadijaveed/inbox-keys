@@ -472,8 +472,73 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     true
   );
 
-  // A fresh list (navigation, account switch) should start the cursor over.
-  window.addEventListener("hashchange", reset);
+  // Returning from a thread must land you back where you left the list: same
+  // cursor row, same scroll offset. Gmail re-renders the list at the TOP after
+  // the hash navigates back from a thread, and the old blanket reset() on every
+  // hashchange threw the cursor away too — the reported "Escape sends me back
+  // to the top" bug. So: save cursor + scroll when the hash dives from a list
+  // into one of its threads, keep the save while moving between threads of the
+  // same list (next/prev thread), and restore when the hash returns to that
+  // exact list. Any other navigation (different list, tab or account switch)
+  // still starts the cursor over.
+  let returnState = null; // { parent, cursor, scrollTop }
+  let lastHash = location.hash;
+
+  function restoreReturn(want) {
+    const seqAtRestore = evSeq;
+    const apply = () => {
+      // The user already moved on (j/k or hover): stop re-pinning under them.
+      if (evSeq !== seqAtRestore) return;
+      const r = rows();
+      if (!r.length) return;
+      cursor = want.cursor >= 0 ? Math.min(want.cursor, r.length - 1) : -1;
+      // Paint by hand (no scrollIntoView) so the cursor highlight can't fight
+      // the scroll restore below.
+      r.forEach((row, i) => row.classList.toggle(CURSOR_CLASS, i === cursor));
+      const sc = gmail.listScrollContainer();
+      if (sc) sc.scrollTop = want.scrollTop;
+    };
+    waitFor(
+      () => (rows().length ? true : null),
+      () => {
+        apply();
+        // Gmail keeps re-rendering the restored list for a beat and settles the
+        // scroll back to the top; re-pin through it (same trick as page()).
+        setTimeout(apply, 120);
+        setTimeout(apply, 320);
+        setTimeout(apply, 600);
+      },
+      () => {}
+    );
+  }
+
+  window.addEventListener("hashchange", () => {
+    const prev = lastHash;
+    const now = location.hash;
+    lastHash = now;
+    const { hashutil } = OpenSuperhuman;
+    if (hashutil.hashIsThread(now)) {
+      if (hashutil.parentHash(now) === prev) {
+        // Dove from a list into one of its threads: remember where we were.
+        const sc = gmail.listScrollContainer();
+        returnState = { parent: prev, cursor, scrollTop: sc ? sc.scrollTop : 0 };
+      } else if (!(returnState && hashutil.parentHash(now) === returnState.parent)) {
+        // A thread of some OTHER list: the save no longer applies.
+        returnState = null;
+      }
+      return; // the list cursor is dormant inside a thread; nothing to reset
+    }
+    if (returnState && now === returnState.parent) {
+      const want = returnState;
+      returnState = null;
+      reset();
+      restoreReturn(want);
+      return;
+    }
+    // A fresh list (navigation, account switch) starts the cursor over.
+    returnState = null;
+    reset();
+  });
 
   OpenSuperhuman.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, snooze, withSelection, withTemporarySelection, reset, focusTop, focusBottom, syncEdgeAfterScroll, page };
 })();

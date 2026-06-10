@@ -782,6 +782,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     prevPage,
     archiveThread,
     exitReply,
+    listScrollContainer,
     listScrollTop,
     listScrollBottom,
     threadScrollContainer,
