@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Open Superhuman — Gmail command palette, hotkeys, split inbox & calendar",
-  "version": "0.3.5",
-  "description": "Open-source, Superhuman-style command palette (Cmd+K), keyboard shortcuts, split-inbox tabs, fast account switching, and a calendar key for Gmail.",
+  "name": "Mailpalette: Gmail command palette, hotkeys, split inbox & calendar",
+  "version": "0.4.0",
+  "description": "Open-source Cmd+K command palette, keyboard shortcuts, split-inbox tabs, account switching, and a calendar key for Gmail.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

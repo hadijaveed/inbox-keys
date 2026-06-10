@@ -7,9 +7,9 @@ const readline = require("node:readline/promises");
 const ROOT = path.resolve(__dirname, "..");
 const EXTENSION_DIR = ROOT;
 const SMOKE_DIR = path.join(ROOT, ".smoke");
-const PROFILE_DIR = process.env.OPEN_SUPERHUMAN_SMOKE_PROFILE || path.join(SMOKE_DIR, "chrome-profile");
+const PROFILE_DIR = process.env.MAILPALETTE_SMOKE_PROFILE || path.join(SMOKE_DIR, "chrome-profile");
 const ARTIFACT_DIR = path.join(SMOKE_DIR, "artifacts");
-const GMAIL_URL = process.env.OPEN_SUPERHUMAN_SMOKE_URL || "https://mail.google.com/mail/u/0/#inbox";
+const GMAIL_URL = process.env.MAILPALETTE_SMOKE_URL || "https://mail.google.com/mail/u/0/#inbox";
 
 const args = process.argv.slice(2);
 const mode = args[0] || "readonly";
@@ -44,7 +44,7 @@ async function launchContext(chromium) {
       "--disable-features=Translate",
     ],
   };
-  const channel = process.env.OPEN_SUPERHUMAN_CHROME_CHANNEL;
+  const channel = process.env.MAILPALETTE_CHROME_CHANNEL;
   if (channel) launchOptions.channel = channel;
   return chromium.launchPersistentContext(PROFILE_DIR, launchOptions);
 }
@@ -129,8 +129,8 @@ async function verifyExtensionPalette(page) {
   const mod = chromeModifier();
   await page.keyboard.press(`${mod}+K`);
   await page.waitForTimeout(300);
-  const opened = await page.locator(".cmdk-modal").count();
-  if (!opened) throw new Error("Cmd/Ctrl+K did not open the Open Superhuman command palette.");
+  const opened = await page.locator(".mailpalette-modal").count();
+  if (!opened) throw new Error("Cmd/Ctrl+K did not open the Mailpalette command palette.");
   await page.keyboard.press("Escape");
   await page.waitForTimeout(150);
 }

@@ -1,6 +1,6 @@
 # Gmail Read-Only Smoke Test
 
-This smoke test checks whether Gmail still exposes the DOM surfaces Open Superhuman depends on. It uses a persistent local Chrome profile so you log into Gmail manually once. The script never asks for, reads, or stores Gmail credentials.
+This smoke test checks whether Gmail still exposes the DOM surfaces Mailpalette depends on. It uses a persistent local Chrome profile so you log into Gmail manually once. The script never asks for, reads, or stores Gmail credentials.
 
 ## One-Time Install
 
@@ -39,7 +39,7 @@ The smoke test verifies:
 
 - Gmail is logged in.
 - Required Gmail selectors are present.
-- The Open Superhuman command palette opens with Cmd/Ctrl+K.
+- The Mailpalette command palette opens with Cmd/Ctrl+K.
 - `/` focuses Gmail search.
 
 It does not archive, trash, send, label, snooze, mute, mark read/unread, open a thread, discard drafts, or otherwise mutate the mailbox.
@@ -47,12 +47,12 @@ It does not archive, trash, send, label, snooze, mute, mark read/unread, open a 
 ## Useful Environment Variables
 
 ```bash
-OPEN_SUPERHUMAN_SMOKE_PROFILE=/path/to/profile npm run smoke:gmail:readonly
-OPEN_SUPERHUMAN_SMOKE_URL=https://mail.google.com/mail/u/0/#inbox npm run smoke:gmail:readonly
-OPEN_SUPERHUMAN_CHROME_CHANNEL=chrome npm run smoke:gmail:readonly
+MAILPALETTE_SMOKE_PROFILE=/path/to/profile npm run smoke:gmail:readonly
+MAILPALETTE_SMOKE_URL=https://mail.google.com/mail/u/0/#inbox npm run smoke:gmail:readonly
+MAILPALETTE_CHROME_CHANNEL=chrome npm run smoke:gmail:readonly
 ```
 
-Use `OPEN_SUPERHUMAN_CHROME_CHANNEL=chrome` if Playwright's bundled Chromium is not installed but local Chrome is available.
+Use `MAILPALETTE_CHROME_CHANNEL=chrome` if Playwright's bundled Chromium is not installed but local Chrome is available.
 
 ## Reading Failures
 

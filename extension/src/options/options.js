@@ -30,7 +30,7 @@ async function load() {
 }
 
 // ---- Keyboard shortcut editor -------------------------------------------
-// Reads the shared catalog (window.OpenSuperhuman_KEYMAP) + keyOverrides and lets you
+// Reads the shared catalog (window.Mailpalette_KEYMAP) + keyOverrides and lets you
 // rebind any non-fixed command. Bindings persist as keyOverrides[id] = ["e"].
 
 let keymapOverrides = {}; // { commandId: ["e"] }  in-memory mirror of storage
@@ -38,15 +38,15 @@ let recording = null; // active recorder state, or null
 
 // Effective keys for a command: its override if present, else defaultKeys.
 function effKeys(cmd) {
-  const KM = window.OpenSuperhuman_KEYMAP;
+  const KM = window.Mailpalette_KEYMAP;
   if (KM && typeof KM.keysFor === "function") return KM.keysFor(cmd.id, keymapOverrides) || [];
   return keymapOverrides[cmd.id] || cmd.defaultKeys || [];
 }
 
 // Render a single binding ("g i") as separate [g][i] chips.
 function keyChips(binding) {
-  const display = window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function"
-    ? OpenSuperhuman_KEYMAP.displayBinding(binding)
+  const display = window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.displayBinding === "function"
+    ? Mailpalette_KEYMAP.displayBinding(binding)
     : String(binding || "");
   return display
     .trim()
@@ -58,7 +58,7 @@ function keyChips(binding) {
 
 function renderKeymap() {
   const wrap = $("keymap");
-  const KM = window.OpenSuperhuman_KEYMAP;
+  const KM = window.Mailpalette_KEYMAP;
   if (!KM || !Array.isArray(KM.commands)) {
     wrap.innerHTML = `<p class="muted">Shortcut catalog not loaded. Reload the extension (chrome://extensions → reload) and reopen this page.</p>`;
     return;
@@ -82,8 +82,8 @@ function renderKeymap() {
     const rows = byGroup.get(g).filter((cmd) => {
       if (!filter) return true;
       const keys = effKeys(cmd);
-      const displayKeys = window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function"
-        ? keys.map((key) => OpenSuperhuman_KEYMAP.displayBinding(key))
+      const displayKeys = window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.displayBinding === "function"
+        ? keys.map((key) => Mailpalette_KEYMAP.displayBinding(key))
         : keys;
       const hay = (cmd.title + " " + g + " " + keys.join(" ") + " " + displayKeys.join(" ")).toLowerCase();
       return hay.includes(filter);
@@ -166,7 +166,7 @@ function buildKeymapRow(cmd) {
 // Returns { id, title } of the FIRST other command whose effective keys
 // already include `binding`, or null when free.
 function findCollision(binding, selfId) {
-  const KM = window.OpenSuperhuman_KEYMAP;
+  const KM = window.Mailpalette_KEYMAP;
   for (const cmd of KM.commands) {
     if (cmd.id === selfId) continue;
     if (effKeys(cmd).includes(binding)) return cmd;
@@ -350,7 +350,7 @@ async function saveBinding(id, binding) {
 // Bind `binding` to `id`, and remove it from `otherId`'s effective keys so the
 // chord stays unambiguous.
 async function replaceBinding(id, binding, otherId) {
-  const KM = window.OpenSuperhuman_KEYMAP;
+  const KM = window.Mailpalette_KEYMAP;
   const other = KM.commands.find((c) => c.id === otherId);
   const next = { ...keymapOverrides, [id]: [binding] };
   if (other) {

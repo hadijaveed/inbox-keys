@@ -1,11 +1,11 @@
 // The command registry: every action the palette and hotkeys can run.
 // Each command: { id, title, group, hint?, keys, contexts, run() }.
-// `keys` is derived from OpenSuperhuman_KEYMAP.keysFor(id, keyOverrides); "g i" is a chord
+// `keys` is derived from Mailpalette_KEYMAP.keysFor(id, keyOverrides); "g i" is a chord
 // (press g then i). `contexts` comes from the shared catalog.
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
-  const { gmail, accounts, calendar, tabs, storage } = OpenSuperhuman;
+  const { gmail, accounts, calendar, tabs, storage } = Mailpalette;
 
   function nav(hash) {
     return () => gmail.setHash(hash);
@@ -13,14 +13,14 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
   // Pull keys + contexts for a catalog command id, applying user overrides.
   function entry(id) {
-    return (OpenSuperhuman_KEYMAP.commands || []).find((c) => c.id === id) || null;
+    return (Mailpalette_KEYMAP.commands || []).find((c) => c.id === id) || null;
   }
   function keysFor(id) {
-    return OpenSuperhuman_KEYMAP.keysFor(id, storage.get("keyOverrides") || {});
+    return Mailpalette_KEYMAP.keysFor(id, storage.get("keyOverrides") || {});
   }
   function contextsFor(id) {
     const e = entry(id);
-    return e ? e.contexts : OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS;
+    return e ? e.contexts : Mailpalette_KEYMAP.DEFAULT_CONTEXTS;
   }
   // Build a base command from a catalog id: catalog supplies title/group/keys/
   // contexts; the caller supplies run() and an optional hint override.
@@ -38,15 +38,15 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function listSelectionAction(action) {
-    if (gmail.getContext() === "inboxList" && OpenSuperhuman.listnav && OpenSuperhuman.listnav.withSelection) {
-      return OpenSuperhuman.listnav.withSelection(action);
+    if (gmail.getContext() === "inboxList" && Mailpalette.listnav && Mailpalette.listnav.withSelection) {
+      return Mailpalette.listnav.withSelection(action);
     }
     return action();
   }
 
   function listTemporarySelectionAction(action) {
-    if (gmail.getContext() === "inboxList" && OpenSuperhuman.listnav && OpenSuperhuman.listnav.withTemporarySelection) {
-      return OpenSuperhuman.listnav.withTemporarySelection(action);
+    if (gmail.getContext() === "inboxList" && Mailpalette.listnav && Mailpalette.listnav.withTemporarySelection) {
+      return Mailpalette.listnav.withTemporarySelection(action);
     }
     return action();
   }
@@ -57,23 +57,23 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       // Compose / messaging
       cmd("compose", () => gmail.compose()),
       cmd("reply", () => gmail.replyToThread()),
-      cmd("reply-all", () => gmail.replyAllToThread(OpenSuperhuman.threadnav.currentCard() || document)),
+      cmd("reply-all", () => gmail.replyAllToThread(Mailpalette.threadnav.currentCard() || document)),
       cmd("forward", () => gmail.forwardThread()),
-      cmd("open-link-or-attachment", () => gmail.openLinkOrAttachment(OpenSuperhuman.threadnav.currentCard() || document)),
+      cmd("open-link-or-attachment", () => gmail.openLinkOrAttachment(Mailpalette.threadnav.currentCard() || document)),
       cmd("attach-file", () => gmail.attachFile()),
       cmd("discard-draft", () => gmail.discardDraft()),
 
       // Triage (archive is context-aware: open thread vs. selected/cursor rows)
-      cmd("archive", () => (gmail.getContext() === "threadView" ? gmail.archiveThread() : OpenSuperhuman.listnav.archive())),
+      cmd("archive", () => (gmail.getContext() === "threadView" ? gmail.archiveThread() : Mailpalette.listnav.archive())),
       cmd("mark-not-done", () => listSelectionAction(() => gmail.markNotDone())),
-      cmd("delete", () => (gmail.getContext() === "threadView" ? gmail.action(["Delete"], "#") : OpenSuperhuman.listnav.trash())),
+      cmd("delete", () => (gmail.getContext() === "threadView" ? gmail.action(["Delete"], "Delete") : Mailpalette.listnav.trash())),
       cmd("undo", () => gmail.undo()),
-      cmd("mark-read-unread", () => (gmail.getContext() === "inboxList" ? OpenSuperhuman.listnav.markReadUnread() : gmail.markReadUnread())),
+      cmd("mark-read-unread", () => (gmail.getContext() === "inboxList" ? Mailpalette.listnav.markReadUnread() : gmail.markReadUnread())),
       cmd("mark-read", () => gmail.action(["Mark as read"])),
       cmd("mark-unread", () => gmail.action(["Mark as unread"])),
-      cmd("snooze", () => (gmail.getContext() === "inboxList" ? OpenSuperhuman.listnav.snooze() : gmail.snooze())),
-      cmd("report-spam", () => gmail.action(["Report spam"], "!")),
-      cmd("star", () => (gmail.getContext() === "threadView" ? gmail.toggleStar(OpenSuperhuman.threadnav.currentCard() || document) : OpenSuperhuman.listnav.toggleStar())),
+      cmd("snooze", () => (gmail.getContext() === "inboxList" ? Mailpalette.listnav.snooze() : gmail.snooze())),
+      cmd("report-spam", () => gmail.action(["Report spam"])),
+      cmd("star", () => (gmail.getContext() === "threadView" ? gmail.toggleStar(Mailpalette.threadnav.currentCard() || document) : Mailpalette.listnav.toggleStar())),
       cmd("mute", () => listSelectionAction(() => gmail.mute())),
       cmd("unsubscribe", () => gmail.unsubscribe()),
       cmd("label", () => listSelectionAction(() => gmail.openLabelMenu())),
@@ -96,16 +96,16 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       // List scrolling + thread/tab navigation (engine helpers)
       cmd("go-top", () => {
         gmail.listScrollTop();
-        if (OpenSuperhuman.listnav && OpenSuperhuman.listnav.syncEdgeAfterScroll) OpenSuperhuman.listnav.syncEdgeAfterScroll(-1);
+        if (Mailpalette.listnav && Mailpalette.listnav.syncEdgeAfterScroll) Mailpalette.listnav.syncEdgeAfterScroll(-1);
       }),
       cmd("go-bottom", () => {
         gmail.listScrollBottom();
-        if (OpenSuperhuman.listnav && OpenSuperhuman.listnav.syncEdgeAfterScroll) OpenSuperhuman.listnav.syncEdgeAfterScroll(1);
+        if (Mailpalette.listnav && Mailpalette.listnav.syncEdgeAfterScroll) Mailpalette.listnav.syncEdgeAfterScroll(1);
       }),
-      cmd("expand-message", () => OpenSuperhuman.threadnav.toggleFocused()),
-      cmd("expand-all", () => OpenSuperhuman.threadnav.expandAllToggle()),
-      cmd("next-page", () => OpenSuperhuman.listnav.page(1)),
-      cmd("prev-page", () => OpenSuperhuman.listnav.page(-1)),
+      cmd("expand-message", () => Mailpalette.threadnav.toggleFocused()),
+      cmd("expand-all", () => Mailpalette.threadnav.expandAllToggle()),
+      cmd("next-page", () => Mailpalette.listnav.page(1)),
+      cmd("prev-page", () => Mailpalette.listnav.page(-1)),
       cmd("next-tab", () => tabs.next()),
       cmd("prev-tab", () => tabs.prev()),
       cmd("back-to-list", () => gmail.back()),
@@ -119,9 +119,9 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
       // Search
       cmd("search", () => {
-        const box = document.querySelector('input[aria-label="Search mail"], input[name="q"]');
+        const box = document.querySelector(gmail.SEL.searchInput);
         if (box) {
-          if (OpenSuperhuman.hotkeys && OpenSuperhuman.hotkeys.armSearchEditing) OpenSuperhuman.hotkeys.armSearchEditing();
+          if (Mailpalette.hotkeys && Mailpalette.hotkeys.armSearchEditing) Mailpalette.hotkeys.armSearchEditing();
           box.focus();
         } else {
           gmail.setHash("search/");
@@ -139,7 +139,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       hint: tab.type === "inbox" ? "Inbox" : tab.query,
       group: "Tabs",
       keys: [],
-      contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
+      contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
       run: () => tabs.navigate(tab),
     }));
   }
@@ -147,11 +147,11 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   function settingsCommands() {
     return [
       {
-        id: "open-superhuman-settings",
-        title: "Open Superhuman settings...",
+        id: "mailpalette-settings",
+        title: "Mailpalette settings...",
         group: "Settings",
         keys: [],
-        contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
         run: () => tabs.openConfig("tabs"),
       },
       {
@@ -159,7 +159,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
         title: "Configure split inbox tabs...",
         group: "Settings",
         keys: [],
-        contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
         run: () => tabs.openConfig("tabs"),
       },
       {
@@ -167,8 +167,18 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
         title: "Configure keyboard shortcuts...",
         group: "Settings",
         keys: [],
-        contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
         run: () => tabs.openConfig("shortcuts"),
+      },
+      {
+        // In-Gmail smoke probe over gmail.SEL: run when a shortcut stops
+        // working — the toast/console name exactly which Gmail hook moved.
+        id: "verify-selectors",
+        title: "Verify Gmail selectors (smoke check)",
+        group: "Settings",
+        keys: [],
+        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
+        run: () => gmail.verifySelectors(),
       },
     ];
   }
@@ -196,7 +206,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
         hint: index === cur ? "current" : `g ${index}`,
         group: "Accounts",
         keys: [`g ${index}`],
-        contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
         run: () => accounts.switchTo(index),
       };
     });
@@ -205,7 +215,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       title: "Configure accounts…",
       group: "Accounts",
       keys: [],
-      contexts: OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS,
+      contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
       run: () => accounts.openConfig(),
     });
     return rows;
@@ -231,7 +241,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   // `base` is kept as a getter so callers always see current overrides applied.
-  OpenSuperhuman.commands = {
+  Mailpalette.commands = {
     all,
     register,
     byKeys,

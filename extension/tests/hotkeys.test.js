@@ -82,7 +82,7 @@ function replyFixture() {
 function load(html, hash) {
   const w = tryLoadContentScripts(html);
   w.location.hash = hash || "#inbox";
-  w.OpenSuperhuman.hotkeys.install();
+  w.Mailpalette.hotkeys.install();
   return w;
 }
 
@@ -131,7 +131,7 @@ function wireList(w) {
   const event = press(w, "j", { target: search });
 
   assert.equal(event.defaultPrevented, true, "j from stale search focus should be claimed");
-  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "j should move the list cursor");
+  assert.equal(rows(w)[1].classList.contains("mailpalette-cursor"), true, "j should move the list cursor");
 }
 
 // If the user intentionally enters search typing mode, shortcut letters and
@@ -146,7 +146,7 @@ function wireList(w) {
 
   const jEvent = press(w, "j", { target: search });
   assert.equal(jEvent.defaultPrevented, false, "j should remain typeable in search mode");
-  assert.equal(rows(w).some((row) => row.classList.contains("open-superhuman-cursor")), false, "search typing should not move the cursor");
+  assert.equal(rows(w).some((row) => row.classList.contains("mailpalette-cursor")), false, "search typing should not move the cursor");
 
   const enterEvent = press(w, "Enter", { target: search });
   assert.equal(enterEvent.defaultPrevented, false, "Enter should submit Gmail search, not open a row");
@@ -178,7 +178,7 @@ function wireList(w) {
   wireList(w);
   const search = w.document.querySelector('input[name="q"]');
   // User opened the search box and is composing a query: editing armed + focused.
-  w.OpenSuperhuman.hotkeys.armSearchEditing();
+  w.Mailpalette.hotkeys.armSearchEditing();
   search.focus();
 
   // While actively typing, x must stay typeable (not hijack the list).
@@ -238,8 +238,8 @@ function wireList(w) {
       w.__toolbarArchived = true;
     });
     // jsdom has no requestAnimationFrame (toast.js uses it), so spy instead of
-    // letting the real toast run. listnav reads OpenSuperhuman.toast dynamically.
-    w.OpenSuperhuman.toast = (msg) => { w.__lastToast = msg; };
+    // letting the real toast run. listnav reads Mailpalette.toast dynamically.
+    w.Mailpalette.toast = (msg) => { w.__lastToast = msg; };
   };
 
   // Not in Inbox: the toolbar Archive is disabled.
@@ -313,7 +313,7 @@ function wireList(w) {
     cb.setAttribute("aria-checked", cb.getAttribute("aria-checked") === "true" ? "false" : "true");
   });
 
-  assert.equal(w.OpenSuperhuman.gmail.isVisible(perRow), false, "per-row Archive starts hidden (0x0) before hover");
+  assert.equal(w.Mailpalette.gmail.isVisible(perRow), false, "per-row Archive starts hidden (0x0) before hover");
 
   const ev = press(w, "e", { target: w.document.body });
   assert.equal(ev.defaultPrevented, true, "e is claimed in the inbox list");
@@ -363,7 +363,7 @@ function wireList(w) {
   press(w, "x", { target: w.document.body }); // select row one
   press(w, "j", { target: w.document.body }); // move to row two
   press(w, "x", { target: w.document.body }); // select row two
-  assert.equal(w.OpenSuperhuman.listnav.selectedRows().length, 2, "two rows selected");
+  assert.equal(w.Mailpalette.listnav.selectedRows().length, 2, "two rows selected");
 
   press(w, "e", { target: w.document.body });
   assert.equal(toolbarClicked, false, "the disabled toolbar Archive isn't used for bulk");
@@ -424,7 +424,7 @@ function wireList(w) {
   assert.equal(cb0.getAttribute("aria-checked"), "true", "x selects the cursor row");
 
   // User is focused in the search box with editing armed (e.g. they clicked it).
-  w.OpenSuperhuman.hotkeys.armSearchEditing();
+  w.Mailpalette.hotkeys.armSearchEditing();
   search.focus();
 
   const esc = press(w, "Escape", { target: search });
@@ -441,7 +441,7 @@ function wireList(w) {
 
   press(w, "x", { target: w.document.body });
   assert.equal(cb0.getAttribute("aria-checked"), "true", "x selects the cursor row");
-  w.OpenSuperhuman.hotkeys.armSearchEditing();
+  w.Mailpalette.hotkeys.armSearchEditing();
   search.focus();
 
   const deselect = press(w, "x", { target: search });
@@ -484,14 +484,14 @@ function wireList(w) {
   const bottom = press(w, "G", { target: w.document.body, shiftKey: true });
   assert.equal(bottom.defaultPrevented, true, "Shift+G should be claimed in the list");
   assert.equal(main.scrollTop, 5000, "Shift+G should scroll the list container to the bottom");
-  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "Shift+G should move the cursor to the last rendered row");
+  assert.equal(rows(w)[1].classList.contains("mailpalette-cursor"), true, "Shift+G should move the cursor to the last rendered row");
   assert.equal(w.__lastScrollIntoViewOptions.block, "end", "bottom jump should align the cursor at the bottom edge");
 
   press(w, "g", { target: w.document.body });
   const top = press(w, "g", { target: w.document.body });
   assert.equal(top.defaultPrevented, true, "g g should be claimed in the list");
   assert.equal(main.scrollTop, 0, "g g should scroll the list container to the top");
-  assert.equal(rows(w)[0].classList.contains("open-superhuman-cursor"), true, "g g should move the cursor to the first rendered row");
+  assert.equal(rows(w)[0].classList.contains("mailpalette-cursor"), true, "g g should move the cursor to the first rendered row");
   assert.equal(w.__lastScrollIntoViewOptions.block, "start", "top jump should align the cursor at the top edge");
 }
 
@@ -512,7 +512,7 @@ function wireList(w) {
 
   // Cursor on the second row, scrolled partway down the list.
   press(w, "j", { target: w.document.body });
-  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "j moves the cursor to row two");
+  assert.equal(rows(w)[1].classList.contains("mailpalette-cursor"), true, "j moves the cursor to row two");
   main.scrollTop = 1234;
 
   // Open a thread: the hash dives and Gmail renders the conversation.
@@ -532,11 +532,11 @@ function wireList(w) {
   w.dispatchEvent(new w.Event("hashchange"));
 
   assert.equal(main.scrollTop, 1234, "the list scroll offset is restored after Escape");
-  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "the cursor is restored to the row it was on");
+  assert.equal(rows(w)[1].classList.contains("mailpalette-cursor"), true, "the cursor is restored to the row it was on");
 
   // A later j continues from the restored row, not from the top.
   press(w, "j", { target: w.document.body });
-  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "j continues from the restored cursor (already on the last row)");
+  assert.equal(rows(w)[1].classList.contains("mailpalette-cursor"), true, "j continues from the restored cursor (already on the last row)");
 }
 
 // Shift+N / Shift+P page the message list via Gmail's Older/Newer pager. Works
@@ -578,7 +578,7 @@ function wireList(w) {
     let older = false;
     w.document.querySelector('[aria-label="Older"]').addEventListener("click", () => { older = true; });
     const search = w.document.querySelector('input[name="q"]');
-    w.OpenSuperhuman.hotkeys.armSearchEditing();
+    w.Mailpalette.hotkeys.armSearchEditing();
     search.focus();
 
     const n = press(w, "N", { target: search, shiftKey: true });
@@ -605,7 +605,7 @@ function wireList(w) {
     const n = press(w, "N", { target: w.document.body, shiftKey: true });
     assert.equal(n.defaultPrevented, true, "Shift+N is claimed in the list");
     assert.equal(main.scrollTop, 0, "after the page turns, the list scrolls back to the top");
-    assert.equal(rows(w)[0].classList.contains("open-superhuman-cursor"), true, "after paging, the cursor lands on the first row");
+    assert.equal(rows(w)[0].classList.contains("mailpalette-cursor"), true, "after paging, the cursor lands on the first row");
   }
 
   // Search results are the exception: Gmail keeps the "Older"/"Newer" toolbar in
@@ -666,7 +666,7 @@ function wireList(w) {
 {
   const w = load(listFixture(), "#inbox");
   const search = w.document.querySelector('input[name="q"]');
-  w.OpenSuperhuman.hotkeys.armSearchEditing();
+  w.Mailpalette.hotkeys.armSearchEditing();
   search.focus();
 
   const event = press(w, "Tab", { target: search });
@@ -684,7 +684,7 @@ function wireList(w) {
 
   const event = press(w, "Tab", { target: search });
 
-  assert.equal(w.OpenSuperhuman.gmail.getContext(), "searchFocused", "fixture should exercise the searchFocused context");
+  assert.equal(w.Mailpalette.gmail.getContext(), "searchFocused", "fixture should exercise the searchFocused context");
   assert.equal(event.defaultPrevented, true, "Tab should be claimed from searchFocused when a list surface is visible");
   assert.equal(w.location.hash, "#search/in%3Ainbox%20is%3Aunread", "Tab should cycle from searchFocused list state");
 }
@@ -704,7 +704,7 @@ function wireList(w) {
 // Tab starts from Inbox and navigates to Unread again, appearing to do nothing.
 {
   const w = load(listFixture(), "#search/in%3Ainbox%20is%3Aunread");
-  w.OpenSuperhuman.storage.cache.tabs = [
+  w.Mailpalette.storage.cache.tabs = [
     { id: "inbox", name: "Inbox", type: "inbox", query: "" },
     { id: "unread", name: "Unread", type: "search", query: "is:unread" },
     { id: "important", name: "Important", type: "search", query: "is:important" },
@@ -721,9 +721,9 @@ function wireList(w) {
 // leave Inbox highlighted or no tab highlighted.
 {
   const w = load(listFixture(), "#imp");
-  w.OpenSuperhuman.tabs.init();
+  w.Mailpalette.tabs.init();
 
-  const active = Array.from(w.document.querySelectorAll(".open-superhuman-tab--active")).map((b) => b.textContent);
+  const active = Array.from(w.document.querySelectorAll(".mailpalette-tab--active")).map((b) => b.textContent);
 
   assert.deepEqual(active, ["Important"], "native #imp should highlight the Important split tab");
 }
@@ -732,14 +732,14 @@ function wireList(w) {
 // built-in tab query is the pre-migration value.
 {
   const w = load(listFixture(), "#search/in%3Ainbox%20is%3Aunread");
-  w.OpenSuperhuman.storage.cache.tabs = [
+  w.Mailpalette.storage.cache.tabs = [
     { id: "inbox", name: "Inbox", type: "inbox", query: "" },
     { id: "unread", name: "Unread", type: "search", query: "is:unread" },
     { id: "important", name: "Important", type: "search", query: "is:important" },
   ];
-  w.OpenSuperhuman.tabs.init();
+  w.Mailpalette.tabs.init();
 
-  const active = Array.from(w.document.querySelectorAll(".open-superhuman-tab--active")).map((b) => b.textContent);
+  const active = Array.from(w.document.querySelectorAll(".mailpalette-tab--active")).map((b) => b.textContent);
 
   assert.deepEqual(active, ["Unread"], "inbox-scoped Unread should highlight even when stored Unread query is old");
 }
@@ -748,9 +748,9 @@ function wireList(w) {
 // hash. In that state, the matching split tab should highlight instead of Inbox.
 {
   const w = load(listFixtureWithSearchValue("in:inbox has:attachment"), "#inbox");
-  w.OpenSuperhuman.tabs.init();
+  w.Mailpalette.tabs.init();
 
-  const active = Array.from(w.document.querySelectorAll(".open-superhuman-tab--active")).map((b) => b.textContent);
+  const active = Array.from(w.document.querySelectorAll(".mailpalette-tab--active")).map((b) => b.textContent);
 
   assert.deepEqual(active, ["Attachments"], "search-box query should drive active split-tab highlighting");
 }
@@ -760,12 +760,12 @@ function wireList(w) {
 // so highlight and Tab cycling do not reset to Inbox during that repaint.
 {
   const w = load(listFixture(), "#inbox");
-  const attachments = w.OpenSuperhuman.tabs.list().find((tab) => tab.id === "attachments");
-  w.OpenSuperhuman.tabs.navigate(attachments);
+  const attachments = w.Mailpalette.tabs.list().find((tab) => tab.id === "attachments");
+  w.Mailpalette.tabs.navigate(attachments);
   w.location.hash = "#search";
-  w.OpenSuperhuman.tabs.init();
+  w.Mailpalette.tabs.init();
 
-  const active = Array.from(w.document.querySelectorAll(".open-superhuman-tab--active")).map((b) => b.textContent);
+  const active = Array.from(w.document.querySelectorAll(".mailpalette-tab--active")).map((b) => b.textContent);
   assert.deepEqual(active, ["Attachments"], "last split tab should stay highlighted during Gmail search/filter repaint");
 
   press(w, "Tab", { target: w.document.body });
@@ -782,7 +782,7 @@ function wireList(w) {
   const event = press(w, "j", { target: body });
 
   assert.equal(event.defaultPrevented, false, "typing in compose should not be claimed");
-  assert.equal(rows(w).some((row) => row.classList.contains("open-superhuman-cursor")), false, "compose typing should not move the list cursor");
+  assert.equal(rows(w).some((row) => row.classList.contains("mailpalette-cursor")), false, "compose typing should not move the list cursor");
 }
 
 // Thread navigation only moves the cursor; Enter on a collapsed focused message
@@ -946,7 +946,7 @@ function wireList(w) {
     clickedBack = true;
   });
 
-  assert.equal(w.OpenSuperhuman.gmail.getContext(), "threadView", "a closed (aria-hidden) preview must not keep us in attachmentPreview");
+  assert.equal(w.Mailpalette.gmail.getContext(), "threadView", "a closed (aria-hidden) preview must not keep us in attachmentPreview");
 
   const event = press(w, "Escape", { target: w.document.body });
 
@@ -963,7 +963,7 @@ function wireList(w) {
   const event = press(w, "j", { target: w.document.body });
 
   assert.equal(event.defaultPrevented, false, "j should not be claimed while a Gmail menu is open");
-  assert.equal(rows(w).some((row) => row.classList.contains("open-superhuman-cursor")), false, "menus should block list movement");
+  assert.equal(rows(w).some((row) => row.classList.contains("mailpalette-cursor")), false, "menus should block list movement");
 }
 
 // Shift+Arrow selection is a RANGE anchored where it began: Shift+Down grows it,
@@ -1173,7 +1173,7 @@ function wireInlineActions(w, opts = {}) {
   // Cursor starts on the latest (second) card; ArrowUp moves the indicator up to the first.
   const up = press(w, "ArrowUp", { target: w.document.body });
   assert.equal(up.defaultPrevented, true, "ArrowUp is claimed in thread view");
-  assert.equal(cardEls[0].classList.contains("open-superhuman-msg-cursor"), true, "ArrowUp moves the indicator to the first card");
+  assert.equal(cardEls[0].classList.contains("mailpalette-msg-cursor"), true, "ArrowUp moves the indicator to the first card");
   assert.deepEqual(headerClicks, [], "ArrowUp must not expand/collapse while moving the cursor");
   assert.equal(scrolled.length, 0, "moving the indicator between messages must not scroll");
 
@@ -1201,7 +1201,7 @@ function wireInlineActions(w, opts = {}) {
 
   press(w, "ArrowDown", { target: w.document.body });
 
-  assert.equal(expandAll.classList.contains("open-superhuman-msg-cursor"), false, "ArrowDown should not focus the global Expand all control");
+  assert.equal(expandAll.classList.contains("mailpalette-msg-cursor"), false, "ArrowDown should not focus the global Expand all control");
   assert.ok(scrolled.length === 1 && scrolled[0] > 0, "ArrowDown at the latest message should scroll instead");
 }
 
@@ -1221,13 +1221,13 @@ function wireInlineActions(w, opts = {}) {
   });
 
   press(w, "ArrowUp", { target: w.document.body });
-  assert.equal(expander.classList.contains("open-superhuman-msg-cursor"), true, "ArrowUp should stop on an expansion opportunity");
+  assert.equal(expander.classList.contains("mailpalette-msg-cursor"), true, "ArrowUp should stop on an expansion opportunity");
 
   press(w, "o", { target: w.document.body });
   assert.equal(w.__expandedOpportunity, true, "o should activate the focused expansion opportunity");
 
   press(w, "ArrowDown", { target: w.document.body });
-  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("open-superhuman-msg-cursor"), true, "ArrowDown should continue to the next message card after an expansion control");
+  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("mailpalette-msg-cursor"), true, "ArrowDown should continue to the next message card after an expansion control");
 }
 
 // A single-message thread (a long newsletter): there's no other card to move to, so
@@ -1249,7 +1249,7 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(down.defaultPrevented, true, "ArrowDown is claimed in a single-message thread");
   assert.ok(scrolled.length === 1 && scrolled[0] > 0, "ArrowDown scrolls a long single message (nothing to navigate to)");
   assert.equal(
-    Array.from(w.document.querySelectorAll('[role="listitem"]')).some((c) => c.classList.contains("open-superhuman-msg-cursor")),
+    Array.from(w.document.querySelectorAll('[role="listitem"]')).some((c) => c.classList.contains("mailpalette-msg-cursor")),
     false,
     "a single-message thread has no other card to move the indicator to"
   );
@@ -1269,7 +1269,7 @@ function wireInlineActions(w, opts = {}) {
   press(w, "ArrowUp", { target: w.document.body }); // c -> b
   press(w, "ArrowUp", { target: w.document.body }); // b -> a
 
-  assert.equal(w.document.querySelector('[data-card="a"]').classList.contains("open-superhuman-msg-cursor"), true, "ArrowUp should walk the message cursor up to the first card");
+  assert.equal(w.document.querySelector('[data-card="a"]').classList.contains("mailpalette-msg-cursor"), true, "ArrowUp should walk the message cursor up to the first card");
 }
 
 // Cmd+K toggles the command palette; Escape closes it. (The palette getting stuck
@@ -1279,11 +1279,11 @@ function wireInlineActions(w, opts = {}) {
 
   const open = press(w, "k", { target: w.document.body, metaKey: true });
   assert.equal(open.defaultPrevented, true, "Cmd+K should be claimed");
-  assert.equal(w.OpenSuperhuman.palette.isOpen(), true, "Cmd+K opens the palette");
+  assert.equal(w.Mailpalette.palette.isOpen(), true, "Cmd+K opens the palette");
 
   const close = press(w, "Escape", { target: w.document.body });
   assert.equal(close.defaultPrevented, true, "Escape should be claimed while the palette is open");
-  assert.equal(w.OpenSuperhuman.palette.isOpen(), false, "Escape closes the palette");
+  assert.equal(w.Mailpalette.palette.isOpen(), false, "Escape closes the palette");
 }
 
 // # trashes the focused list row, including the shifted punctuation form most
@@ -1369,7 +1369,7 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(oldSnooze.defaultPrevented, false, "b should no longer be a default snooze shortcut");
   assert.equal(w.__triageAction, null, "b should not open snooze by default");
 
-  const snoozeCmd = w.OpenSuperhuman.commands.all().find((cmd) => cmd.id === "snooze");
+  const snoozeCmd = w.Mailpalette.commands.all().find((cmd) => cmd.id === "snooze");
   assert.deepEqual(Array.from(snoozeCmd.keys), ["h"], "Snooze should default to h only");
 
   press(w, "E", { target: w.document.body, shiftKey: true });
@@ -1539,7 +1539,7 @@ function wireInlineActions(w, opts = {}) {
     w.__discardedDraft = true;
   });
 
-  const entry = w.OpenSuperhuman_KEYMAP.commands.find((cmd) => cmd.id === "discard-draft");
+  const entry = w.Mailpalette_KEYMAP.commands.find((cmd) => cmd.id === "discard-draft");
   assert.equal(entry.defaultKeys[0], "Mod+Shift+D", "discard draft should default to Cmd/Ctrl+Shift+D");
 
   const event = press(w, "d", { target: body, metaKey: true, shiftKey: true });
@@ -1605,8 +1605,8 @@ function wireInlineActions(w, opts = {}) {
 {
   const w = load(listFixture(), "#inbox");
   wireList(w);
-  w.OpenSuperhuman.storage.cache = {
-    ...w.OpenSuperhuman.storage.cache,
+  w.Mailpalette.storage.cache = {
+    ...w.Mailpalette.storage.cache,
     keyOverrides: { archive: ["Ctrl+e"] },
   };
 
@@ -1622,8 +1622,8 @@ function wireInlineActions(w, opts = {}) {
 {
   const w = load(listFixture(), "#inbox");
   wireList(w);
-  w.OpenSuperhuman.storage.cache = {
-    ...w.OpenSuperhuman.storage.cache,
+  w.Mailpalette.storage.cache = {
+    ...w.Mailpalette.storage.cache,
     keyOverrides: { archive: ["Shift+A"] },
   };
 
@@ -1648,7 +1648,87 @@ function wireInlineActions(w, opts = {}) {
   }
 
   assert.equal(threw, null, "a keydown targeted at the document must not throw");
-  assert.equal(rows(w)[1].classList.contains("open-superhuman-cursor"), true, "the shortcut still runs after a non-Element target");
+  assert.equal(rows(w)[1].classList.contains("mailpalette-cursor"), true, "the shortcut still runs after a non-Element target");
+}
+
+// Structural row fallback: if Gmail ever renames tr.zA, rows inside the
+// thread-list area that carry a [role=checkbox] still navigate. Without the
+// fallback, a single class rename killed j/k/x/e/Enter all at once.
+{
+  const noZa = `
+    <div role="main">
+      <div gh="tl"><table><tbody>
+        <tr data-row="one"><td><div role="checkbox" aria-checked="false"></div></td><td><span class="bog">one</span></td></tr>
+        <tr data-row="two"><td><div role="checkbox" aria-checked="false"></div></td><td><span class="bog">two</span></td></tr>
+      </tbody></table></div>
+    </div>`;
+  const w = load(noZa, "#inbox");
+  const j = press(w, "j", { target: w.document.body });
+  assert.equal(j.defaultPrevented, true, "j is still claimed when Gmail renames the row class");
+  const rs = Array.from(w.document.querySelectorAll('[gh="tl"] tr'));
+  assert.equal(rs[1].classList.contains("mailpalette-cursor"), true, "the cursor moves via the structural row fallback");
+}
+
+// findControl prefers Gmail's toolbars over a document-wide scan: a link inside
+// an email body whose text is exactly "Mute" (a newsletter can do this) must
+// not be clicked when the real toolbar control exists. The decoy sits EARLIER
+// in DOM order, which is exactly what fooled the old document-wide scan.
+{
+  const html = `
+    <div role="main">
+      <div class="a3s"><a href="#decoy">Mute</a></div>
+    </div>
+    <div gh="tm"><div role="button" aria-label="Mute">Mute</div></div>`;
+  const w = load(html, "#inbox/" + ID);
+  let decoy = false, toolbar = false;
+  w.document.querySelector('a[href="#decoy"]').addEventListener("click", () => { decoy = true; });
+  w.document.querySelector('[gh="tm"] [aria-label="Mute"]').addEventListener("click", () => { toolbar = true; });
+
+  w.Mailpalette.gmail.mute();
+  assert.equal(toolbar, true, "the toolbar Mute is clicked");
+  assert.equal(decoy, false, "the email-body decoy link is NOT clicked");
+}
+
+// ...but controls that legitimately live outside any toolbar (Undo snackbar,
+// per-message Unsubscribe header button) are still reachable via the
+// document-wide fallback when no toolbar offers them.
+{
+  const w = load('<div role="main"></div><button aria-label="Mute">Mute</button>', "#inbox/" + ID);
+  let clicked = false;
+  w.document.querySelector('[aria-label="Mute"]').addEventListener("click", () => { clicked = true; });
+  w.Mailpalette.gmail.mute();
+  assert.equal(clicked, true, "non-toolbar controls are still found by the fallback scan");
+}
+
+// A failed action must toast, not silently eat the keystroke. The old behavior
+// on a Gmail rename was consume() + realClick(null): the key did nothing with
+// zero signal, and a user report was the only detection mechanism.
+{
+  const w = load(threadFixture(), "#inbox/" + ID);
+  const toasts = [];
+  w.Mailpalette.toast = (msg) => { toasts.push(String(msg)); };
+  const f = press(w, "f", { target: w.document.body });
+  assert.equal(f.defaultPrevented, true, "f is claimed in thread view");
+  assert.equal(
+    toasts.some((t) => /not found: Forward/.test(t)),
+    true,
+    "a missing Forward control surfaces a toast naming the control"
+  );
+}
+
+// The verify-selectors smoke probe (palette: "Verify Gmail selectors") reports
+// exactly which registry hooks are missing on the current surface.
+{
+  const w = load(listFixture(), "#inbox");
+  w.Mailpalette.toast = () => {};
+  w.console = { table: () => {} }; // keep the probe table out of test output
+  const out = w.Mailpalette.gmail.verifySelectors();
+  assert.equal(out.surface, "list", "a list hash probes the list surface");
+  const failedNames = out.failed.map((f) => f.probe);
+  assert.equal(failedNames.includes("compose button"), true, "the missing compose button is reported by name");
+  assert.equal(failedNames.includes("list rows (tr.zA)"), false, "present probes pass");
+  const rowProbe = out.results.find((r) => r.probe === "list rows (tr.zA)");
+  assert.equal(rowProbe.count >= 2, true, "probe results carry visible-match counts");
 }
 
 console.log("hotkey integration tests passed");

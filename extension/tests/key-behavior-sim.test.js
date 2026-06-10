@@ -91,7 +91,7 @@ assert.match(
 
 assert.match(
   fs.readFileSync(path.join(root, "src/content/commands.js"), "utf8"),
-  /OpenSuperhuman\.hotkeys\.armSearchEditing\(\)/,
+  /Mailpalette\.hotkeys\.armSearchEditing\(\)/,
   "The / search command should arm search typing before focusing Gmail search"
 );
 
@@ -107,10 +107,33 @@ assert.doesNotMatch(
   "Reply-all should not open the message overflow menu"
 );
 
+// Thread detection: the [data-message-id] probe is pinned in the selector
+// registry, getContext consumes it through SEL with the structural fallback,
+// and stays gated by inThread() so a list never classifies as a thread.
 assert.match(
   gmailSource,
-  /inThread\(\) && Array\.from\(document\.querySelectorAll\('\[role="main"\] \[data-message-id\]'\)\)/,
-  "Thread context should be detected before searchFocused"
+  /renderedMessage: '\[role="main"\] \[data-message-id\]'/,
+  "The rendered-message selector must stay pinned in the registry"
+);
+assert.match(
+  gmailSource,
+  /inThread\(\) && \(firstVisible\(SEL\.renderedMessage\) \|\| firstVisible\(SEL\.threadFallback\)\)/,
+  "Thread context should probe the registry with the structural fallback, gated by inThread()"
+);
+assert.match(
+  gmailSource,
+  /listRow: "tr\.zA"/,
+  "The list-row selector must stay pinned in the registry"
+);
+
+// Actions must never fall back to synthetic keyboard events: Gmail ignores
+// them (isTrusted === false), so a sendKey fallback "succeeds" while doing
+// nothing and masks real selector breakage. Failures toast instead.
+assert.doesNotMatch(gmailSource, /sendKey/, "No synthetic-key dispatch may exist in gmail.js");
+assert.match(
+  gmailSource,
+  /Gmail control not found/,
+  "Failed control lookups must surface a toast, not fail silently"
 );
 
 assert.match(

@@ -1,8 +1,8 @@
 {
-  "name": "open-superhuman",
-  "version": "0.3.5",
+  "name": "mailpalette",
+  "version": "0.4.0",
   "private": true,
-  "description": "Open Superhuman — Gmail command palette, hotkeys, split inbox & calendar (Chrome MV3 extension).",
+  "description": "Mailpalette: Gmail command palette, hotkeys, split inbox & calendar (Chrome MV3 extension).",
   "scripts": {
     "test": "node tests/hashutil.test.js && node tests/getcontext.test.js && node tests/storage.test.js && node tests/hotkeys.test.js && node tests/tabs-config.test.js && node tests/key-behavior-sim.test.js",
     "smoke:install": "npm install --save-dev playwright && npx playwright install chromium",

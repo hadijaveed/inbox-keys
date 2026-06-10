@@ -1,5 +1,5 @@
 // Lightweight, self-contained toast notifications.
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
   let container = null;
@@ -7,20 +7,23 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   function ensure() {
     if (container) return container;
     container = document.createElement("div");
-    container.className = "open-superhuman-toast-stack";
+    container.className = "mailpalette-toast-stack";
     document.documentElement.appendChild(container);
     return container;
   }
 
   function toast(message, opts = {}) {
+    // Tolerate the shorthand toast(msg, "warn") — some callers pass the kind
+    // directly, and destructuring a string silently dropped it.
+    if (typeof opts === "string") opts = { kind: opts };
     const { timeout = 2600, kind = "info" } = opts;
     const el = document.createElement("div");
-    el.className = `open-superhuman-toast open-superhuman-toast--${kind}`;
+    el.className = `mailpalette-toast mailpalette-toast--${kind}`;
     el.textContent = message;
     ensure().appendChild(el);
-    requestAnimationFrame(() => el.classList.add("open-superhuman-toast--in"));
+    requestAnimationFrame(() => el.classList.add("mailpalette-toast--in"));
     const remove = () => {
-      el.classList.remove("open-superhuman-toast--in");
+      el.classList.remove("mailpalette-toast--in");
       setTimeout(() => el.remove(), 200);
     };
     if (timeout) setTimeout(remove, timeout);
@@ -28,5 +31,5 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return remove;
   }
 
-  OpenSuperhuman.toast = toast;
+  Mailpalette.toast = toast;
 })();

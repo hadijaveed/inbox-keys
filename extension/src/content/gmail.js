@@ -5,7 +5,7 @@
 //   2) Stable Gmail attributes ([gh="cm"] = compose, [gh="tm"] = toolbar).
 //   3) Toolbar buttons matched by data-tooltip / aria-label (English; localizable later).
 //   4) Native Gmail keyboard shortcuts as a fallback (requires shortcuts ON in Gmail).
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
   function accountIndex() {
@@ -24,11 +24,11 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   // True when a single conversation is open (hash ends in a long thread id),
   // e.g. #inbox/FMfcgz... or #search/is:unread/FMfcgz... The id is the LAST hash
   // segment regardless of how many list/query/label segments precede it — see
-  // OpenSuperhuman.hashutil.hashIsThread. (Earlier this assumed the id was the 2nd segment,
+  // Mailpalette.hashutil.hashIsThread. (Earlier this assumed the id was the 2nd segment,
   // which broke threads opened from search: shortcuts died until you cleared the
   // search box.)
   function inThread() {
-    return OpenSuperhuman.hashutil.hashIsThread(location.hash || "");
+    return Mailpalette.hashutil.hashIsThread(location.hash || "");
   }
 
   // Visible-only query helper.
@@ -54,6 +54,41 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     const cs = typeof getComputedStyle === "function" ? getComputedStyle(el) : null;
     if (cs && (cs.visibility === "hidden" || cs.display === "none" || cs.opacity === "0")) return false;
     return true;
+  }
+
+  // ---- Selector registry --------------------------------------------------
+  // Single source of truth for every load-bearing Gmail DOM hook. Code reads
+  // SEL.* instead of scattering literals; verifySelectors() below (surfaced in
+  // the palette as "Verify Gmail selectors") and smoke/gmail-readonly-smoke.js
+  // probe the same names, so "what we depend on" and "is it still there" can't
+  // drift apart. When a shortcut dies in the field, run the verify command:
+  // the failing probe names exactly what Gmail changed.
+  const SEL = {
+    // list surface
+    listRow: "tr.zA",
+    listRowFallback: '[gh="tl"] tr', // structural: any row in the thread-list area
+    threadList: '[role="main"] [gh="tl"]',
+    rowCheckbox: '[role="checkbox"]',
+    // open conversation
+    renderedMessage: '[role="main"] [data-message-id]',
+    card: '[role="listitem"]',
+    cardHeader: ".gE",
+    messageBody: ".a3s",
+    inlineActions: ".ams",
+    // structural shape of an open conversation, for when [data-message-id]
+    // is renamed: a message card header or a message body inside main.
+    threadFallback: '[role="main"] [role="listitem"] .gE, [role="main"] .a3s',
+    // app chrome
+    main: '[role="main"]',
+    composeButton: '[gh="cm"], [role="button"][gh="cm"]',
+    toolbars: '[gh="tm"], [gh="mtb"], [role="toolbar"]',
+    searchInput: 'input[aria-label="Search mail"], input[name="q"]',
+    composeBody: 'div[aria-label="Message Body"], div[g_editable="true"], [contenteditable="true"][role="textbox"]',
+  };
+
+  // First visible match for a selector, or null.
+  function firstVisible(sel, scope = document) {
+    return Array.from(scope.querySelectorAll(sel)).filter(isVisible)[0] || null;
   }
 
   // Gmail's controls (row buttons, side-rail tabs, toolbar icons) frequently
@@ -162,12 +197,36 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function findControl(patterns, scope = document) {
+    // Prefer Gmail's own control surfaces (toolbars) before scanning the whole
+    // document: controlLabel falls back to textContent, so a document-wide scan
+    // can match a link INSIDE an email body whose text happens to be exactly
+    // "Mute" or "Move to inbox" and realClick mail content instead of a Gmail
+    // control. Toolbars first; the generic scan stays as the fallback because
+    // some controls legitimately live outside any toolbar (the Undo snackbar,
+    // the per-message Unsubscribe header button).
+    if (scope === document) {
+      for (const bar of Array.from(document.querySelectorAll(SEL.toolbars)).filter(isVisible)) {
+        const hit = visibleControls(bar).find((el) => patterns.some((p) => p.test(controlLabel(el))));
+        if (hit) return hit;
+      }
+    }
     return (
       visibleControls(scope).find((el) => {
         const label = controlLabel(el);
         return patterns.some((p) => p.test(label));
       }) || null
     );
+  }
+
+  // Click el, or tell the user which Gmail control went missing. Most actions
+  // drive a label-matched control; when Gmail renames one, the old behavior was
+  // an eaten keystroke and total silence — and a user report is the only way we
+  // ever find out. An action the user explicitly invoked must never fail
+  // silently.
+  function clickOr(el, what) {
+    if (realClick(el)) return true;
+    if (Mailpalette.toast) Mailpalette.toast(`Gmail control not found: ${what}`, { kind: "warn" });
+    return false;
   }
 
   function attachmentPreviewDialog() {
@@ -197,7 +256,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function compose() {
-    const btn = document.querySelector('[gh="cm"], [role="button"][gh="cm"]');
+    const btn = document.querySelector(SEL.composeButton);
     if (btn && isVisible(btn)) {
       btn.click();
       return true;
@@ -207,56 +266,18 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return true;
   }
 
-  // Dispatch a native single-key Gmail shortcut (e.g. 'c', 'e', 'r').
-  // Requires "Keyboard shortcuts on" in Gmail settings.
-  // Events are tagged __openSuperhumanSynthetic=true so the capture-phase hotkey engine
-  // can ignore them on re-entry (kills recursion / double-fire).
-  let _dispatchingSynthetic = false;
-  function sendKey(key, opts = {}) {
-    // Hard recursion breaker: a synthetic key must never trigger another
-    // synthetic key synchronously. Without this entry guard a re-entrant call
-    // recurses until "Maximum call stack size exceeded".
-    if (_dispatchingSynthetic) return;
-    const target = document.body;
-    const base = {
-      key,
-      code: keyCode(key),
-      keyCode: key.toUpperCase().charCodeAt(0),
-      which: key.toUpperCase().charCodeAt(0),
-      bubbles: true,
-      cancelable: true,
-      ...opts,
-    };
-    _dispatchingSynthetic = true;
-    try {
-      const down = new KeyboardEvent("keydown", base);
-      down.__openSuperhumanSynthetic = true;
-      target.dispatchEvent(down);
-      const up = new KeyboardEvent("keyup", base);
-      up.__openSuperhumanSynthetic = true;
-      target.dispatchEvent(up);
-    } finally {
-      _dispatchingSynthetic = false;
-    }
-  }
-
-  function isDispatchingSynthetic() {
-    return _dispatchingSynthetic;
-  }
-
-  function keyCode(key) {
-    if (/^[a-z]$/i.test(key)) return "Key" + key.toUpperCase();
-    return key;
-  }
-
-  // Try a tooltip click first, then fall back to a native shortcut.
-  function action(tooltipPrefixes, fallbackKey) {
-    for (const p of [].concat(tooltipPrefixes)) {
+  // Click the first visible control matching one of the tooltip prefixes.
+  // There is deliberately NO synthetic-keyboard fallback here: Gmail ignores
+  // synthetic key events (isTrusted === false), so the old fallback "succeeded"
+  // while doing nothing and masked real selector breakage. A missing control
+  // now toasts so the failure is visible in the field.
+  function action(tooltipPrefixes, what) {
+    const prefixes = [].concat(tooltipPrefixes);
+    for (const p of prefixes) {
       if (clickByTooltip(p)) return true;
     }
-    if (fallbackKey) {
-      sendKey(fallbackKey);
-      return true;
+    if (Mailpalette.toast) {
+      Mailpalette.toast(`Gmail control not found: ${what || prefixes[0]}`, { kind: "warn" });
     }
     return false;
   }
@@ -264,18 +285,18 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   function undo() {
     const btn = findControl([/^Undo$/i]);
     if (btn) return realClick(btn);
-    if (OpenSuperhuman.toast) OpenSuperhuman.toast("Nothing to undo", { kind: "info" });
+    if (Mailpalette.toast) Mailpalette.toast("Nothing to undo", { kind: "info" });
     return false;
   }
 
   function toggleStar(scope = document) {
-    return realClick(findControl([
+    return clickOr(findControl([
       /^Star$/i,
       /^Not starred$/i,
       /^Add star$/i,
       /^Remove star$/i,
       /^Starred$/i,
-    ], scope));
+    ], scope), "Star");
   }
 
   function attachFile() {
@@ -303,33 +324,33 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       if (btn) break;
     }
     if (btn) return realClick(btn);
-    if (OpenSuperhuman.toast) OpenSuperhuman.toast("No draft discard button found", { kind: "warn" });
+    if (Mailpalette.toast) Mailpalette.toast("No draft discard button found", { kind: "warn" });
     return false;
   }
 
   function markReadUnread() {
-    return realClick(findControl([/^Mark as read$/i, /^Mark as unread$/i, /^Mark read$/i, /^Mark unread$/i]));
+    return clickOr(findControl([/^Mark as read$/i, /^Mark as unread$/i, /^Mark read$/i, /^Mark unread$/i]), "Mark as read/unread");
   }
 
   function snooze() {
     const btn = findControl([/^Snooze\b/i, /^Remind me\b/i]);
     if (btn) return realClick(btn);
-    if (OpenSuperhuman.toast) OpenSuperhuman.toast("No snooze button found", { kind: "warn" });
+    if (Mailpalette.toast) Mailpalette.toast("No snooze button found", { kind: "warn" });
     return false;
   }
 
   function markNotDone() {
-    return realClick(findControl([/^Move to inbox$/i, /^Mark not done$/i, /^Not done$/i]));
+    return clickOr(findControl([/^Move to inbox$/i, /^Mark not done$/i, /^Not done$/i]), "Move to inbox");
   }
 
   function mute() {
-    return realClick(findControl([/^Mute$/i]));
+    return clickOr(findControl([/^Mute$/i]), "Mute");
   }
 
   function unsubscribe() {
     const btn = findControl([/^Unsubscribe\b/i, /\bUnsubscribe\b/i]);
     if (!btn) {
-      if (OpenSuperhuman.toast) OpenSuperhuman.toast("No unsubscribe action found", { kind: "warn" });
+      if (Mailpalette.toast) Mailpalette.toast("No unsubscribe action found", { kind: "warn" });
       return false;
     }
     realClick(btn);
@@ -360,24 +381,24 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       return /\b(attachment|download|open|preview)\b/i.test(label);
     });
     if (target) return realClick(target);
-    if (OpenSuperhuman.toast) OpenSuperhuman.toast("No link or attachment found", { kind: "warn" });
+    if (Mailpalette.toast) Mailpalette.toast("No link or attachment found", { kind: "warn" });
     return false;
   }
 
   function openLabelMenu() {
-    return realClick(findControl([/^Label$/i, /^Labels$/i, /^Label as$/i]));
+    return clickOr(findControl([/^Label$/i, /^Labels$/i, /^Label as$/i]), "Label menu");
   }
 
   function removeLabel() {
-    return realClick(findControl([/^Remove label$/i, /^Remove$/i]));
+    return clickOr(findControl([/^Remove label$/i, /^Remove$/i]), "Remove label");
   }
 
   function removeAllLabels() {
-    return realClick(findControl([/^Remove all labels$/i]));
+    return clickOr(findControl([/^Remove all labels$/i]), "Remove all labels");
   }
 
   function openMoveMenu() {
-    return realClick(findControl([/^Move$/i, /^Move to$/i]));
+    return clickOr(findControl([/^Move$/i, /^Move to$/i]), "Move menu");
   }
 
   // Read the signed-in account email from the top-right account button.
@@ -394,9 +415,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
   // The active compose editor body (contenteditable).
   function composeBody() {
-    const editors = Array.from(
-      document.querySelectorAll('div[aria-label="Message Body"], div[g_editable="true"], [contenteditable="true"][role="textbox"]')
-    ).filter(isVisible);
+    const editors = Array.from(document.querySelectorAll(SEL.composeBody)).filter(isVisible);
     return editors[editors.length - 1] || null;
   }
 
@@ -442,11 +461,11 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   // Gmail renders one; otherwise drive Gmail's own hash router by stripping the
   // thread id off the hash (#inbox/<id> -> #inbox, #search/<q>/<id> -> #search/<q>).
   //
-  // We deliberately do NOT fall back to sendKey("u"): Gmail ignores synthetic
+  // We deliberately do NOT fall back to a synthetic "u" key: Gmail ignores synthetic
   // keyboard events (isTrusted === false) for native navigation, so a fake "u"
   // silently does nothing. Hash routing is trusted and always works.
   function back() {
-    const parent = OpenSuperhuman.hashutil.parentHash(location.hash || "");
+    const parent = Mailpalette.hashutil.parentHash(location.hash || "");
     const sels = [
       '[aria-label^="Back to"]',
       '[data-tooltip^="Back to"]',
@@ -477,7 +496,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   // Start a reply on the open thread: the inline "Reply" link, else the
-  // per-message reply arrow icon.
+  // per-message reply arrow icon. Only the document-wide lookup toasts on
+  // failure: a card-scoped miss is normal (callers fall through to document).
   function replyToThread(scope = document) {
     const opened = realClick(
       amsButton(/^reply$/i, scope) ||
@@ -485,6 +505,9 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
         exactButton("Reply", scope)
     );
     if (opened) focusReplyBodySoon();
+    else if (scope === document && Mailpalette.toast) {
+      Mailpalette.toast("Gmail control not found: Reply", { kind: "warn" });
+    }
     return opened;
   }
   // The inline "Reply all" button Gmail renders at the BOTTOM of a multi-recipient
@@ -538,19 +561,20 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function forwardThread() {
-    return realClick(
+    return clickOr(
       amsButton(/^forward\b/i) ||
         labeledButton([/^Forward\b/i]) ||
-        exactButton("Forward")
+        exactButton("Forward"),
+      "Forward"
     );
   }
 
   // Older = next (further down the list), Newer = previous.
   function nextThread() {
-    return realClick(exactButton("Older"));
+    return clickOr(exactButton("Older"), "Older (next conversation)");
   }
   function prevThread() {
-    return realClick(exactButton("Newer"));
+    return clickOr(exactButton("Newer"), "Newer (previous conversation)");
   }
 
   // List pager: in a list view Gmail's "Older"/"Newer" toolbar buttons step to the
@@ -575,7 +599,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
   // Archive the open thread via its toolbar icon (returns to the list).
   function archiveThread() {
-    return realClick(exactButton("Archive"));
+    return clickOr(exactButton("Archive"), "Archive");
   }
 
   // Leave an open inline reply before Escape is allowed to navigate back from the
@@ -629,10 +653,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   // Find the scrollable ancestor of the first visible thread row and pin it to
   // top or bottom. Falls back to scrolling [role="main"].
   function listScrollContainer() {
-    const row =
-      Array.from(document.querySelectorAll('tr.zA')).filter(isVisible)[0] ||
-      Array.from(document.querySelectorAll('[role="main"] [gh="tl"]')).filter(isVisible)[0] ||
-      null;
+    const row = firstVisible(SEL.listRow) || firstVisible(SEL.threadList);
     let el = row;
     while (el && el !== document.body) {
       const style = getComputedStyle(el);
@@ -640,7 +661,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) return el;
       el = el.parentElement;
     }
-    return Array.from(document.querySelectorAll('[role="main"]')).filter(isVisible)[0] || null;
+    return firstVisible(SEL.main);
   }
 
   function listScrollTop() {
@@ -659,7 +680,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   // [role="main"]. Same pattern as listScrollContainer, kept separate because the
   // reading pane and the list pane are different scroll containers.
   function threadScrollContainer() {
-    const msg = Array.from(document.querySelectorAll('[role="main"] [data-message-id]')).filter(isVisible)[0];
+    const msg = firstVisible(SEL.renderedMessage) || firstVisible(SEL.threadFallback);
     let el = msg;
     while (el && el !== document.body) {
       const style = getComputedStyle(el);
@@ -667,7 +688,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight + 1) return el;
       el = el.parentElement;
     }
-    return Array.from(document.querySelectorAll('[role="main"]')).filter(isVisible)[0] || null;
+    return firstVisible(SEL.main);
   }
 
   // Scroll the reading pane (dir: 1 down, -1 up) by a fraction of its height.
@@ -683,11 +704,56 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return true;
   }
 
+  // In-Gmail smoke probe over the selector registry: check every probe that
+  // should exist on the CURRENT surface (list vs thread) and report what is
+  // missing. Run from the palette ("Verify Gmail selectors") when a shortcut
+  // stops working — the failing probe names exactly what Gmail changed,
+  // without devtools archaeology. Conditional controls (the pager, hover-only
+  // row buttons) are deliberately not probed: their absence is often
+  // legitimate, and a smoke check that cries wolf gets ignored.
+  const PROBES = [
+    { name: "search input", sel: SEL.searchInput, requiredIn: "always" },
+    { name: "main region", sel: SEL.main, requiredIn: "always" },
+    { name: "compose button", sel: SEL.composeButton, requiredIn: "always" },
+    { name: "list rows (tr.zA)", sel: SEL.listRow, requiredIn: "list" },
+    { name: "thread list area", sel: SEL.threadList, requiredIn: "list" },
+    { name: "row checkboxes", sel: SEL.listRow + " " + SEL.rowCheckbox, requiredIn: "list" },
+    { name: "toolbar", sel: SEL.toolbars, requiredIn: "list" },
+    { name: "rendered message", sel: SEL.renderedMessage, requiredIn: "thread" },
+    { name: "message cards", sel: '[role="main"] ' + SEL.card, requiredIn: "thread" },
+    { name: "card headers", sel: '[role="main"] ' + SEL.card + " " + SEL.cardHeader, requiredIn: "thread" },
+    { name: "message bodies", sel: '[role="main"] ' + SEL.messageBody, requiredIn: "thread" },
+    { name: "inline reply links (.ams)", sel: SEL.inlineActions, requiredIn: "thread" },
+  ];
+
+  function verifySelectors() {
+    const surface = inThread() ? "thread" : "list";
+    const results = PROBES.map((p) => {
+      const applies = p.requiredIn === "always" || p.requiredIn === surface;
+      const count = Array.from(document.querySelectorAll(p.sel)).filter(isVisible).length;
+      return { probe: p.name, selector: p.sel, requiredIn: p.requiredIn, applies, count, ok: !applies || count > 0 };
+    });
+    const failed = results.filter((r) => !r.ok);
+    if (typeof console !== "undefined" && console.table) console.table(results);
+    if (Mailpalette.toast) {
+      if (failed.length) {
+        Mailpalette.toast(
+          `Selector check: ${failed.length} FAILED — ${failed.map((r) => r.probe).join(", ")} (details in console)`,
+          { kind: "warn", timeout: 6000 }
+        );
+      } else {
+        const checked = results.filter((r) => r.applies).length;
+        Mailpalette.toast(`Selector check: all ${checked} probes OK on this ${surface} view`, { kind: "info" });
+      }
+    }
+    return { surface, results, failed };
+  }
+
   // Coarse "what am I looking at" classifier, in priority order. Drives the
   // hotkey context gate so bindings only fire where they make sense.
   function getContext() {
     // 1) Palette open.
-    if (OpenSuperhuman.palette && OpenSuperhuman.palette.isOpen && OpenSuperhuman.palette.isOpen()) return "paletteOpen";
+    if (Mailpalette.palette && Mailpalette.palette.isOpen && Mailpalette.palette.isOpen()) return "paletteOpen";
 
     const active = document.activeElement;
 
@@ -714,29 +780,33 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     if (body && !inThread()) return "compose";
 
     // 4) Thread view: in a thread AND a rendered message present. This must win
-    // over stale Gmail search focus after submitting a search query.
-    if (inThread() && Array.from(document.querySelectorAll('[role="main"] [data-message-id]')).filter(isVisible)[0]) {
+    // over stale Gmail search focus after submitting a search query. The
+    // [data-message-id] probe is primary; if Gmail ever renames it, the
+    // structural shape of an open conversation (a card header or message body
+    // inside main) keeps thread detection alive. Both stay gated by inThread()
+    // so a list never classifies as a thread (the long-bare-word query guard).
+    if (inThread() && (firstVisible(SEL.renderedMessage) || firstVisible(SEL.threadFallback))) {
       return "threadView";
     }
 
     // 5) Inbox list: a visible thread row / thread-list area. Search results
     // render as a list while the search box can remain focused.
-    if (
-      Array.from(document.querySelectorAll('tr.zA')).filter(isVisible)[0] ||
-      Array.from(document.querySelectorAll('[role="main"] [gh="tl"]')).filter(isVisible)[0]
-    ) {
+    if (firstVisible(SEL.listRow) || firstVisible(SEL.threadList)) {
       return "inboxList";
     }
 
     // 6) Search field focused and no active list/thread surface is available.
-    if (active && active.matches && active.matches('input[aria-label="Search mail"], input[name="q"]')) {
+    if (active && active.matches && active.matches(SEL.searchInput)) {
       return "searchFocused";
     }
 
     return "unknown";
   }
 
-  OpenSuperhuman.gmail = {
+  Mailpalette.gmail = {
+    SEL,
+    firstVisible,
+    verifySelectors,
     accountIndex,
     basePath,
     setHash,
@@ -747,8 +817,6 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     realClick,
     hover,
     compose,
-    sendKey,
-    isDispatchingSynthetic,
     action,
     undo,
     toggleStar,

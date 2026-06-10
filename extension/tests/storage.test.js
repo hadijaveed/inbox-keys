@@ -32,7 +32,7 @@ async function loadWithStoredTabs(tabs) {
     },
   };
   window.eval(storageScript);
-  const cache = await window.OpenSuperhuman.storage.load();
+  const cache = await window.Mailpalette.storage.load();
   return { cache, savedPatch };
 }
 

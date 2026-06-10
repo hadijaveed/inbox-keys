@@ -8,7 +8,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg && msg.type === "open-superhuman:relay") {
+  if (msg && msg.type === "mailpalette:relay") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
       if (tab && /mail\.google\.com/.test(tab.url || "")) {

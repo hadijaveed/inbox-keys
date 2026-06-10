@@ -9,10 +9,10 @@
 // A gear at the end opens an in-Gmail config modal to add/rename/remove tabs,
 // with one-click suggestions. Everything persists in chrome.storage and the bar
 // re-injects itself as Gmail re-renders (MutationObserver).
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
-  const { storage, gmail } = OpenSuperhuman;
+  const { storage, gmail } = Mailpalette;
 
   let bar = null;
   let observer = null;
@@ -103,9 +103,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function searchBoxQuery() {
-    const box = Array.from(
-      document.querySelectorAll('input[aria-label="Search mail"], input[name="q"]')
-    ).filter((el) => gmail.isVisible(el))[0];
+    const box = gmail.firstVisible(gmail.SEL.searchInput);
     return box ? box.value || "" : "";
   }
 
@@ -174,11 +172,11 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
   function build() {
     const el = document.createElement("div");
-    el.id = "open-superhuman-tab-bar";
-    el.className = "open-superhuman-tabbar";
+    el.id = "mailpalette-tab-bar";
+    el.className = "mailpalette-tabbar";
     tabs().forEach((tab) => {
       const b = document.createElement("button");
-      b.className = "open-superhuman-tab";
+      b.className = "mailpalette-tab";
       b.dataset.id = tab.id;
       b.textContent = tab.name;
       b.title = tab.type === "inbox" ? "Inbox" : effectiveQuery(tab);
@@ -186,9 +184,9 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       el.appendChild(b);
     });
     const gear = document.createElement("button");
-    gear.className = "open-superhuman-tab-gear";
-    gear.title = "Configure OpenSuperhuman Tabs";
-    gear.setAttribute("aria-label", "Configure OpenSuperhuman Tabs");
+    gear.className = "mailpalette-tab-gear";
+    gear.title = "Configure Mailpalette Tabs";
+    gear.setAttribute("aria-label", "Configure Mailpalette Tabs");
     gear.innerHTML = GEAR_SVG;
     gear.addEventListener("click", openConfig);
     el.appendChild(gear);
@@ -202,8 +200,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   function updateActive() {
     if (!bar) return;
     const list = tabs();
-    bar.querySelectorAll(".open-superhuman-tab").forEach((b, i) => {
-      b.classList.toggle("open-superhuman-tab--active", list[i] ? isActive(list[i]) : false);
+    bar.querySelectorAll(".mailpalette-tab").forEach((b, i) => {
+      b.classList.toggle("mailpalette-tab--active", list[i] ? isActive(list[i]) : false);
     });
   }
 
@@ -232,20 +230,20 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   let shortcutRecording = null;
 
   function keymapCommands() {
-    return (window.OpenSuperhuman_KEYMAP && OpenSuperhuman_KEYMAP.commands) || [];
+    return (window.Mailpalette_KEYMAP && Mailpalette_KEYMAP.commands) || [];
   }
 
   function shortcutKeysFor(cmd, overrides) {
-    if (window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.keysFor === "function") {
-      return OpenSuperhuman_KEYMAP.keysFor(cmd.id, overrides || {}) || [];
+    if (window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.keysFor === "function") {
+      return Mailpalette_KEYMAP.keysFor(cmd.id, overrides || {}) || [];
     }
     if (overrides && Object.prototype.hasOwnProperty.call(overrides, cmd.id)) return overrides[cmd.id] || [];
     return cmd.defaultKeys || [];
   }
 
   function shortcutChips(binding) {
-    const display = window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function"
-      ? OpenSuperhuman_KEYMAP.displayBinding(binding)
+    const display = window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.displayBinding === "function"
+      ? Mailpalette_KEYMAP.displayBinding(binding)
       : String(binding || "");
     return display
       .trim()
@@ -273,8 +271,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function contextsOverlap(a, b) {
-    const left = a && a.length ? a : OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS;
-    const right = b && b.length ? b : OpenSuperhuman_KEYMAP.DEFAULT_CONTEXTS;
+    const left = a && a.length ? a : Mailpalette_KEYMAP.DEFAULT_CONTEXTS;
+    const right = b && b.length ? b : Mailpalette_KEYMAP.DEFAULT_CONTEXTS;
     if (left.includes("*") || right.includes("*")) return true;
     return left.some((ctx) => right.includes(ctx));
   }
@@ -301,82 +299,82 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     let activePane = initialPane === "shortcuts" ? "shortcuts" : "tabs";
 
     cfg = document.createElement("div");
-    cfg.className = "open-superhuman-overlay open-superhuman-overlay--open open-superhuman-cfg-overlay";
+    cfg.className = "mailpalette-overlay mailpalette-overlay--open mailpalette-cfg-overlay";
     cfg.innerHTML = `
-      <div class="open-superhuman-modal open-superhuman-cfg" role="dialog" aria-label="Configure tabs">
-        <div class="open-superhuman-cfg-head">
+      <div class="mailpalette-modal mailpalette-cfg" role="dialog" aria-label="Configure tabs">
+        <div class="mailpalette-cfg-head">
           <div>
-            <div class="open-superhuman-cfg-title">Open Superhuman settings</div>
-            <div class="open-superhuman-cfg-sub">Tune your split inbox and keyboard shortcuts without leaving Gmail. Search shortcuts by action, group, or key.</div>
+            <div class="mailpalette-cfg-title">Mailpalette settings</div>
+            <div class="mailpalette-cfg-sub">Tune your split inbox and keyboard shortcuts without leaving Gmail. Search shortcuts by action, group, or key.</div>
           </div>
-          <button class="open-superhuman-cfg-x" aria-label="Close">esc</button>
+          <button class="mailpalette-cfg-x" aria-label="Close">esc</button>
         </div>
-        <div class="open-superhuman-cfg-tabs" role="tablist" aria-label="Open Superhuman settings sections">
-          <button class="open-superhuman-cfg-tab" type="button" role="tab" data-settings-tab="tabs">Tabs</button>
-          <button class="open-superhuman-cfg-tab" type="button" role="tab" data-settings-tab="shortcuts">Keyboard shortcuts</button>
+        <div class="mailpalette-cfg-tabs" role="tablist" aria-label="Mailpalette settings sections">
+          <button class="mailpalette-cfg-tab" type="button" role="tab" data-settings-tab="tabs">Tabs</button>
+          <button class="mailpalette-cfg-tab" type="button" role="tab" data-settings-tab="shortcuts">Keyboard shortcuts</button>
         </div>
-        <div class="open-superhuman-cfg-body">
-          <section class="open-superhuman-cfg-panel open-superhuman-cfg-panel--tabs" data-settings-panel="tabs">
-            <div class="open-superhuman-cfg-section-head">
+        <div class="mailpalette-cfg-body">
+          <section class="mailpalette-cfg-panel mailpalette-cfg-panel--tabs" data-settings-panel="tabs">
+            <div class="mailpalette-cfg-section-head">
               <div>
-                <div class="open-superhuman-cfg-section-title">Split inbox tabs</div>
-                <div class="open-superhuman-cfg-section-sub">Keep 4-6 tabs for daily triage. Use Gmail operators like <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>.</div>
+                <div class="mailpalette-cfg-section-title">Split inbox tabs</div>
+                <div class="mailpalette-cfg-section-sub">Keep 4-6 tabs for daily triage. Use Gmail operators like <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>.</div>
               </div>
             </div>
-            <div class="open-superhuman-cfg-list"></div>
-            <div class="open-superhuman-cfg-actions">
-              <button class="open-superhuman-cfg-add">+ Add tab</button>
-              <button class="open-superhuman-cfg-reset">Reset defaults</button>
+            <div class="mailpalette-cfg-list"></div>
+            <div class="mailpalette-cfg-actions">
+              <button class="mailpalette-cfg-add">+ Add tab</button>
+              <button class="mailpalette-cfg-reset">Reset defaults</button>
             </div>
-            <div class="open-superhuman-cfg-suggest-label">Presets</div>
-            <div class="open-superhuman-cfg-suggest"></div>
+            <div class="mailpalette-cfg-suggest-label">Presets</div>
+            <div class="mailpalette-cfg-suggest"></div>
           </section>
-          <section class="open-superhuman-cfg-panel open-superhuman-cfg-panel--keys" data-settings-panel="shortcuts">
-            <div class="open-superhuman-cfg-section-head open-superhuman-shortcuts-head">
+          <section class="mailpalette-cfg-panel mailpalette-cfg-panel--keys" data-settings-panel="shortcuts">
+            <div class="mailpalette-cfg-section-head mailpalette-shortcuts-head">
               <div>
-                <div class="open-superhuman-cfg-section-title">Keyboard shortcuts</div>
-                <div class="open-superhuman-cfg-section-sub">Click an editable shortcut, then press the new key or combo. Shift, Ctrl, Alt, and Cmd combos are supported. Built-in shortcuts are read-only.</div>
+                <div class="mailpalette-cfg-section-title">Keyboard shortcuts</div>
+                <div class="mailpalette-cfg-section-sub">Click an editable shortcut, then press the new key or combo. Shift, Ctrl, Alt, and Cmd combos are supported. Built-in shortcuts are read-only.</div>
               </div>
-              <button class="open-superhuman-shortcut-reset-all">Reset shortcuts</button>
+              <button class="mailpalette-shortcut-reset-all">Reset shortcuts</button>
             </div>
-            <div class="open-superhuman-shortcut-tools">
-              <div class="open-superhuman-shortcut-search-wrap">
-                <span class="open-superhuman-shortcut-search-icon" aria-hidden="true">⌕</span>
-                <input class="open-superhuman-shortcut-search" type="search" placeholder="Search shortcuts, actions, or keys..." autocomplete="off" />
+            <div class="mailpalette-shortcut-tools">
+              <div class="mailpalette-shortcut-search-wrap">
+                <span class="mailpalette-shortcut-search-icon" aria-hidden="true">⌕</span>
+                <input class="mailpalette-shortcut-search" type="search" placeholder="Search shortcuts, actions, or keys..." autocomplete="off" />
               </div>
-              <div class="open-superhuman-shortcut-count"></div>
+              <div class="mailpalette-shortcut-count"></div>
             </div>
-            <div class="open-superhuman-shortcut-list"></div>
+            <div class="mailpalette-shortcut-list"></div>
           </section>
         </div>
-        <div class="open-superhuman-cfg-foot">
-          <span class="open-superhuman-cfg-hint"></span>
+        <div class="mailpalette-cfg-foot">
+          <span class="mailpalette-cfg-hint"></span>
           <span>
-            <button class="open-superhuman-btn open-superhuman-btn--ghost open-superhuman-cfg-cancel">Cancel</button>
-            <button class="open-superhuman-btn open-superhuman-cfg-save">Save</button>
+            <button class="mailpalette-btn mailpalette-btn--ghost mailpalette-cfg-cancel">Cancel</button>
+            <button class="mailpalette-btn mailpalette-cfg-save">Save</button>
           </span>
         </div>
       </div>`;
     document.documentElement.appendChild(cfg);
 
-    const list = cfg.querySelector(".open-superhuman-cfg-list");
-    const suggestWrap = cfg.querySelector(".open-superhuman-cfg-suggest");
-    const shortcutList = cfg.querySelector(".open-superhuman-shortcut-list");
-    const shortcutSearch = cfg.querySelector(".open-superhuman-shortcut-search");
-    const shortcutCount = cfg.querySelector(".open-superhuman-shortcut-count");
-    const hint = cfg.querySelector(".open-superhuman-cfg-hint");
+    const list = cfg.querySelector(".mailpalette-cfg-list");
+    const suggestWrap = cfg.querySelector(".mailpalette-cfg-suggest");
+    const shortcutList = cfg.querySelector(".mailpalette-shortcut-list");
+    const shortcutSearch = cfg.querySelector(".mailpalette-shortcut-search");
+    const shortcutCount = cfg.querySelector(".mailpalette-shortcut-count");
+    const hint = cfg.querySelector(".mailpalette-cfg-hint");
 
     function setSettingsPane(pane) {
       activePane = pane === "shortcuts" ? "shortcuts" : "tabs";
       cfg.querySelectorAll("[data-settings-tab]").forEach((tab) => {
         const selected = tab.dataset.settingsTab === activePane;
-        tab.classList.toggle("open-superhuman-cfg-tab--active", selected);
+        tab.classList.toggle("mailpalette-cfg-tab--active", selected);
         tab.setAttribute("aria-selected", selected ? "true" : "false");
         tab.tabIndex = selected ? 0 : -1;
       });
       cfg.querySelectorAll("[data-settings-panel]").forEach((panel) => {
         const selected = panel.dataset.settingsPanel === activePane;
-        panel.classList.toggle("open-superhuman-cfg-panel--active", selected);
+        panel.classList.toggle("mailpalette-cfg-panel--active", selected);
         panel.hidden = !selected;
       });
       hint.innerHTML =
@@ -387,16 +385,16 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
     function rowFor(tab, i) {
       const row = document.createElement("div");
-      row.className = "open-superhuman-cfg-row";
+      row.className = "mailpalette-cfg-row";
       const isInbox = tab.type === "inbox";
       row.innerHTML = `
-        <input class="open-superhuman-cfg-name" value="${escapeAttr(tab.name)}" placeholder="Tab name" />
-        <input class="open-superhuman-cfg-query" value="${escapeAttr(tab.query || "")}" placeholder="${isInbox ? "Inbox (the default view)" : "in:inbox is:unread, label:Clients, from:boss@…"}" ${isInbox ? "disabled" : ""} />
-        <button class="open-superhuman-cfg-del" title="Remove" ${isInbox ? "disabled" : ""}>✕</button>`;
-      row.querySelector(".open-superhuman-cfg-name").addEventListener("input", (e) => (working[i].name = e.target.value));
+        <input class="mailpalette-cfg-name" value="${escapeAttr(tab.name)}" placeholder="Tab name" />
+        <input class="mailpalette-cfg-query" value="${escapeAttr(tab.query || "")}" placeholder="${isInbox ? "Inbox (the default view)" : "in:inbox is:unread, label:Clients, from:boss@…"}" ${isInbox ? "disabled" : ""} />
+        <button class="mailpalette-cfg-del" title="Remove" ${isInbox ? "disabled" : ""}>✕</button>`;
+      row.querySelector(".mailpalette-cfg-name").addEventListener("input", (e) => (working[i].name = e.target.value));
       if (!isInbox) {
-        row.querySelector(".open-superhuman-cfg-query").addEventListener("input", (e) => (working[i].query = e.target.value));
-        row.querySelector(".open-superhuman-cfg-del").addEventListener("click", () => {
+        row.querySelector(".mailpalette-cfg-query").addEventListener("input", (e) => (working[i].query = e.target.value));
+        row.querySelector(".mailpalette-cfg-del").addEventListener("click", () => {
           working.splice(i, 1);
           renderRows();
         });
@@ -421,8 +419,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       let shown = 0;
       keymapCommands().forEach((cmd) => {
         const keys = effectiveShortcutKeys(cmd);
-        const displayKeys = window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function"
-          ? keys.map((key) => OpenSuperhuman_KEYMAP.displayBinding(key))
+        const displayKeys = window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.displayBinding === "function"
+          ? keys.map((key) => Mailpalette_KEYMAP.displayBinding(key))
           : keys;
         const hay = `${cmd.title} ${cmd.group || ""} ${keys.join(" ")} ${displayKeys.join(" ")} ${(cmd.contexts || []).join(" ")}`.toLowerCase();
         if (filter && !hay.includes(filter)) return;
@@ -436,7 +434,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       shortcutList.innerHTML = "";
       groups.forEach((group) => {
         const head = document.createElement("div");
-        head.className = "open-superhuman-shortcut-group";
+        head.className = "mailpalette-shortcut-group";
         head.textContent = group;
         shortcutList.appendChild(head);
         byGroup.get(group).forEach((cmd) => {
@@ -446,7 +444,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       });
       if (!shown) {
         const empty = document.createElement("div");
-        empty.className = "open-superhuman-shortcut-empty";
+        empty.className = "mailpalette-shortcut-empty";
         empty.textContent = "No shortcuts match your search.";
         shortcutList.appendChild(empty);
       }
@@ -455,16 +453,16 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
     function shortcutRow(cmd) {
       const row = document.createElement("div");
-      row.className = "open-superhuman-shortcut-row" + (cmd.fixed ? " open-superhuman-shortcut-row--fixed" : "");
+      row.className = "mailpalette-shortcut-row" + (cmd.fixed ? " mailpalette-shortcut-row--fixed" : "");
       row.dataset.id = cmd.id;
 
       const meta = document.createElement("div");
-      meta.className = "open-superhuman-shortcut-meta";
+      meta.className = "mailpalette-shortcut-meta";
       const title = document.createElement("div");
-      title.className = "open-superhuman-shortcut-title";
+      title.className = "mailpalette-shortcut-title";
       title.textContent = cmd.title;
       const context = document.createElement("div");
-      context.className = "open-superhuman-shortcut-context";
+      context.className = "mailpalette-shortcut-context";
       context.textContent = (cmd.contexts || []).join(", ") || "all contexts";
       meta.appendChild(title);
       meta.appendChild(context);
@@ -472,12 +470,12 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
       const keys = document.createElement("button");
       keys.type = "button";
-      keys.className = "open-superhuman-shortcut-keys";
+      keys.className = "mailpalette-shortcut-keys";
       keys.disabled = !!cmd.fixed;
       const effective = effectiveShortcutKeys(cmd);
       keys.innerHTML = effective.length
-        ? effective.map(shortcutChips).join('<span class="open-superhuman-shortcut-or">or</span>')
-        : '<span class="open-superhuman-shortcut-none">not set</span>';
+        ? effective.map(shortcutChips).join('<span class="mailpalette-shortcut-or">or</span>')
+        : '<span class="mailpalette-shortcut-none">not set</span>';
       if (!cmd.fixed) {
         keys.title = "Record a new shortcut";
         keys.addEventListener("click", () => startShortcutRecording(cmd, row, keys));
@@ -488,7 +486,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
       const reset = document.createElement("button");
       reset.type = "button";
-      reset.className = "open-superhuman-shortcut-reset";
+      reset.className = "mailpalette-shortcut-reset";
       reset.textContent = "Reset";
       reset.disabled = cmd.fixed || !Array.isArray(workingKeyOverrides[cmd.id]);
       reset.addEventListener("click", () => {
@@ -503,15 +501,15 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     function startShortcutRecording(cmd, row, keys) {
       cancelShortcutRecording(false);
       shortcutRecording = { cmd, row, keys, parts: [], chordTimer: null, cancel: cancelShortcutRecording };
-      row.classList.add("open-superhuman-shortcut-row--recording");
-      keys.innerHTML = '<span class="open-superhuman-shortcut-listening">Press key or combo...</span>';
+      row.classList.add("mailpalette-shortcut-row--recording");
+      keys.innerHTML = '<span class="mailpalette-shortcut-listening">Press key or combo...</span>';
       document.addEventListener("keydown", onShortcutRecordKey, true);
     }
 
     function renderShortcutRecording() {
       if (!shortcutRecording) return;
       const chips = shortcutRecording.parts.map(shortcutChips).join("");
-      shortcutRecording.keys.innerHTML = chips || '<span class="open-superhuman-shortcut-listening">Press key or combo...</span>';
+      shortcutRecording.keys.innerHTML = chips || '<span class="mailpalette-shortcut-listening">Press key or combo...</span>';
     }
 
     function cancelShortcutRecording(rerender = true) {
@@ -568,7 +566,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       const collision = findShortcutCollision(binding, id, workingKeyOverrides);
       if (collision) {
         if (collision.fixed) {
-          OpenSuperhuman.toast(`Shortcut reserved for ${collision.title}`, "warn");
+          Mailpalette.toast(`Shortcut reserved for ${collision.title}`, "warn");
           cancelShortcutRecording();
           return;
         }
@@ -585,7 +583,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       const existing = working.findIndex((tab) => tab.type === "search" && norm(tab.query) === norm(query));
       if (existing >= 0) {
         focusRow(existing);
-        OpenSuperhuman.toast("Tab already added");
+        Mailpalette.toast("Tab already added");
         return;
       }
       working.push({ id: "t" + Date.now() + Math.floor(Math.random() * 1000), name: name || "New tab", type: "search", query: query || "" });
@@ -596,24 +594,24 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       suggestWrap.innerHTML = "";
       SUGGESTION_GROUPS.forEach((group) => {
         const box = document.createElement("div");
-        box.className = "open-superhuman-cfg-suggest-group";
+        box.className = "mailpalette-cfg-suggest-group";
         const title = document.createElement("div");
-        title.className = "open-superhuman-cfg-suggest-title";
+        title.className = "mailpalette-cfg-suggest-title";
         title.textContent = group.title;
         box.appendChild(title);
         const chips = document.createElement("div");
-        chips.className = "open-superhuman-cfg-suggest-chips";
+        chips.className = "mailpalette-cfg-suggest-chips";
         group.items.forEach((s) => {
           const chip = document.createElement("button");
           const exists = working.some((tab) => tab.type === "search" && norm(tab.query) === norm(s.query));
-          chip.className = "open-superhuman-cfg-chip" + (exists ? " open-superhuman-cfg-chip--added" : "");
+          chip.className = "mailpalette-cfg-chip" + (exists ? " mailpalette-cfg-chip--added" : "");
           chip.title = s.query;
           chip.disabled = exists;
           const main = document.createElement("span");
-          main.className = "open-superhuman-cfg-chip-main";
+          main.className = "mailpalette-cfg-chip-main";
           main.textContent = s.name;
           const note = document.createElement("span");
-          note.className = "open-superhuman-cfg-chip-note";
+          note.className = "mailpalette-cfg-chip-note";
           note.textContent = exists ? "Added" : s.note;
           chip.appendChild(main);
           chip.appendChild(note);
@@ -626,13 +624,13 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     }
 
     function focusRow(i) {
-      const rows = Array.from(list.querySelectorAll(".open-superhuman-cfg-row"));
+      const rows = Array.from(list.querySelectorAll(".mailpalette-cfg-row"));
       const row = rows[i];
       if (!row) return;
-      row.classList.add("open-superhuman-cfg-row--pulse");
-      const input = row.querySelector(".open-superhuman-cfg-name");
+      row.classList.add("mailpalette-cfg-row--pulse");
+      const input = row.querySelector(".mailpalette-cfg-name");
       if (input) input.focus();
-      setTimeout(() => row.classList.remove("open-superhuman-cfg-row--pulse"), 700);
+      setTimeout(() => row.classList.remove("mailpalette-cfg-row--pulse"), 700);
     }
 
     function norm(value) {
@@ -646,30 +644,30 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     cfg.querySelectorAll("[data-settings-tab]").forEach((tab) => {
       tab.addEventListener("click", () => setSettingsPane(tab.dataset.settingsTab));
     });
-    cfg.querySelector(".open-superhuman-cfg-add").addEventListener("click", () => addTab("", ""));
-    cfg.querySelector(".open-superhuman-cfg-reset").addEventListener("click", () => {
-      working.splice(0, working.length, ...OpenSuperhuman.DEFAULTS.tabs.map((t) => ({ ...t })));
+    cfg.querySelector(".mailpalette-cfg-add").addEventListener("click", () => addTab("", ""));
+    cfg.querySelector(".mailpalette-cfg-reset").addEventListener("click", () => {
+      working.splice(0, working.length, ...Mailpalette.DEFAULTS.tabs.map((t) => ({ ...t })));
       renderRows();
     });
-    cfg.querySelector(".open-superhuman-shortcut-search").addEventListener("input", (e) => {
+    cfg.querySelector(".mailpalette-shortcut-search").addEventListener("input", (e) => {
       shortcutFilter = e.target.value || "";
       renderShortcuts();
     });
-    cfg.querySelector(".open-superhuman-shortcut-reset-all").addEventListener("click", () => {
+    cfg.querySelector(".mailpalette-shortcut-reset-all").addEventListener("click", () => {
       workingKeyOverrides = {};
       cancelShortcutRecording(false);
       renderShortcuts();
     });
-    cfg.querySelector(".open-superhuman-cfg-cancel").addEventListener("click", closeConfig);
-    cfg.querySelector(".open-superhuman-cfg-x").addEventListener("click", closeConfig);
-    cfg.querySelector(".open-superhuman-cfg-save").addEventListener("click", async () => {
+    cfg.querySelector(".mailpalette-cfg-cancel").addEventListener("click", closeConfig);
+    cfg.querySelector(".mailpalette-cfg-x").addEventListener("click", closeConfig);
+    cfg.querySelector(".mailpalette-cfg-save").addEventListener("click", async () => {
       const cleaned = working
         .map((t) => ({ ...t, name: (t.name || "").trim() }))
         .filter((t) => t.type === "inbox" || (t.name && (t.query || "").trim()));
       await storage.set({ tabs: cleaned, keyOverrides: workingKeyOverrides });
       closeConfig();
       rebuild();
-      OpenSuperhuman.toast("Settings saved");
+      Mailpalette.toast("Settings saved");
     });
     cfg.addEventListener("mousedown", (e) => {
       if (e.target === cfg) closeConfig();
@@ -727,5 +725,5 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     });
   }
 
-  OpenSuperhuman.tabs = { init, openConfig, navigate, list: tabs, next, prev };
+  Mailpalette.tabs = { init, openConfig, navigate, list: tabs, next, prev };
 })();

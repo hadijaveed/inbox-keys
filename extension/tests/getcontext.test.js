@@ -27,7 +27,7 @@ function ctx({ hash = "#inbox", html = "", paletteOpen = false, focus = null }) 
     const el = w.document.querySelector(focus);
     if (el) el.focus();
   }
-  return w.OpenSuperhuman.gmail.getContext();
+  return w.Mailpalette.gmail.getContext();
 }
 
 // ---- THE REGRESSION: a thread opened from the search box ----
@@ -51,6 +51,16 @@ assert.equal(
 // ---- Threads from other surfaces still work ----
 assert.equal(ctx({ hash: "#inbox/" + ID, html: MSG }), "threadView", "inbox thread");
 assert.equal(ctx({ hash: "#label/Clients/" + ID, html: MSG }), "threadView", "label thread");
+
+// ---- Structural fallback for a [data-message-id] rename ----
+// If Gmail renames the attribute, the shape of an open conversation (a card
+// header or message body inside main) keeps thread detection alive. Still
+// gated by inThread(), so the list guards below stay intact.
+assert.equal(
+  ctx({ hash: "#inbox/" + ID, html: '<div role="main"><div role="listitem"><div class="gE">h</div><div class="a3s">body</div></div></div>' }),
+  "threadView",
+  "thread detection survives a [data-message-id] rename via the structural fallback"
+);
 
 // ---- Lists must NOT be threadView (the DOM guard at work) ----
 assert.equal(ctx({ hash: "#inbox", html: LIST }), "inboxList", "inbox list");

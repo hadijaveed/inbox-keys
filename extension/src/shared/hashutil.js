@@ -1,5 +1,5 @@
 // Pure helpers for reasoning about Gmail's URL hash. No DOM, no chrome APIs, no
-// other OpenSuperhuman modules — so it loads first as a content script AND can be required
+// other Mailpalette modules — so it loads first as a content script AND can be required
 // straight into Node for unit tests (dual export at the bottom).
 //
 // Gmail routes everything through the hash:
@@ -20,8 +20,8 @@
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api; // Node: `const { hashIsThread } = require(...)`
   } else {
-    root.OpenSuperhuman = root.OpenSuperhuman || {};
-    root.OpenSuperhuman.hashutil = api; // Gmail: window.OpenSuperhuman.hashutil
+    root.Mailpalette = root.Mailpalette || {};
+    root.Mailpalette.hashutil = api; // Gmail: window.Mailpalette.hashutil
   }
 })(typeof window !== "undefined" ? window : globalThis, function () {
   // Gmail conversation ids are long opaque tokens (observed: 32 chars of

@@ -1,4 +1,4 @@
-# Open Superhuman
+# Mailpalette
 
 A Superhuman-style layer for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3). It adds a Cmd+K command palette, keyboard shortcuts and chords, split-inbox tabs, fast account switching, and a calendar key. No Gmail API, no server, no AI, no build step. The only permission requested is `storage` (plus `host_permissions` for `mail.google.com`). Everything works by driving Gmail's own UI from a content script.
 
@@ -163,9 +163,9 @@ Most plumbing already exists in `tabs.js` (bar, hash navigation, active detectio
 
 A periodic real-Gmail smoke test would catch Gmail-side DOM renames that the jsdom fixtures cannot. Good future task.
 
-### 3. Optional internal rename
+### 3. Internal rename (done)
 
-User-facing name is Open Superhuman, but the internal namespace is still `window.CMDK` and CSS classes use a `cmdk-` prefix (`cmdk-tab`, `cmdk-overlay`, `cmdk-cursor`). Left as-is because they are implementation details and renaming touches every file plus tests. If done, do it as one mechanical pass with `npm test` as the safety net; note `cmdk-cursor` and a few class strings are asserted in tests, so update those too.
+The product is Mailpalette everywhere: namespace `window.Mailpalette`, CSS prefix `mailpalette-` (`mailpalette-tab`, `mailpalette-overlay`, `mailpalette-cursor`), runtime message types `mailpalette:...`, synthetic-event tag `__mailpaletteSynthetic`, keymap global `Mailpalette_KEYMAP`. Done as one mechanical pass with `npm test` green. The user-facing `Cmd+K` / `⌘K` shortcut text is the actual keystroke, not a brand name.
 
 ## Conventions
 

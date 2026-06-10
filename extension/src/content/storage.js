@@ -1,5 +1,5 @@
 // Namespaced globals shared across the content scripts.
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
   const DEFAULTS = {
@@ -72,6 +72,6 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     },
   };
 
-  OpenSuperhuman.storage = storage;
-  OpenSuperhuman.DEFAULTS = DEFAULTS;
+  Mailpalette.storage = storage;
+  Mailpalette.DEFAULTS = DEFAULTS;
 })();

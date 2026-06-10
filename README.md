@@ -1,90 +1,94 @@
-# Open Superhuman
+# Mailpalette
 
-An open-source, Superhuman-style layer for Gmail: a **Cmd+K command palette**,
-**keyboard shortcuts**, **split-inbox tabs**, **fast account switching**, and a
-**calendar key** — as a zero-dependency Chrome extension (Manifest V3).
+Superhuman-speed Gmail, without giving anyone your email.
 
-> This does **not** use the Gmail API and asks for **no read/write access to
-> your email**. It drives Gmail's own UI from a content script, so the only
-> permission it needs is `storage`.
+Mailpalette is a **Cmd+K command palette**, **keyboard shortcuts**, **split-inbox tabs**, **fast account switching**, and a **calendar key** for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3).
+
+> **The privacy stance is the whole point.** No Gmail API. No server. No AI. No analytics. No build step. The only permission is `storage` (your settings, kept locally). Everything works by driving Gmail's own UI from a content script, so Mailpalette never reads, sends, or stores your mail.
 
 ## Features
 
-- **Command palette (`Cmd/Ctrl + K`)** — fuzzy-search every action: compose,
-  triage, jump to any folder or tab, switch accounts, run anything.
-- **Superhuman-style hotkeys** — `c` compose, `e` archive, `r`/`a`/`f`
-  reply/reply-all/forward, `s` star, `h` snooze, `/` search, and `g`-prefixed
-  chords (`g i` inbox, `g t` sent, `g d` drafts, `g a` all mail, `g h` snoozed…).
-- **Split-inbox tabs** — a tab bar at the top of Gmail where each tab is any
-  Gmail search (`is:unread`, `label:Clients`, `from:boss@x.com`, `has:attachment`,
-  `category:updates`…). Edit them from the gear in the bar; one-click suggestions
-  included. Tabs drive Gmail's own hash router, so the list is rendered by Gmail.
-- **Account switching** — `g 0`, `g 1`, `g 2`… jump straight to `/mail/u/N/`.
-  The number is the account index. Also available from the palette by email.
-- **Calendar key** — at the top level (not while reading a thread): `0` opens
-  Google Calendar in a half-screen window beside Gmail; `0 0` opens it in a new
-  tab. Opens for the account you're currently in.
+- **Command palette (`Cmd/Ctrl+K`)**: fuzzy-search every action: compose, triage, jump to any folder, tab, or account, run anything.
+- **Hotkeys and chords**: `c` compose, `e` archive, `r` reply, `Enter` reply-all, `f` forward, `s` star, `h` snooze, `x` select, `/` search, plus `g`-chords (`g i` inbox, `g t` sent, `g d` drafts, `g a` all mail, `g h` snoozed).
+- **Remappable keys**: every non-engine shortcut can be rebound from the settings page or the in-Gmail config modal. Collisions are detected; built-ins show read-only.
+- **Split-inbox tabs**: a tab bar over Gmail where each tab is any Gmail search (`in:inbox is:unread`, `label:Clients`, `from:boss@x.com`, `category:updates`). `Tab`/`Shift+Tab` cycle. One-click preset suggestions, gear modal to edit. Gmail renders the lists itself via its own hash router.
+- **List navigation**: keyboard cursor over the thread list, `j`/`k` movement, `x` multi-select, anchor-based `Shift+Arrow` range select, `Shift+N`/`Shift+P` paging that lands you at the top of the new page, `g g`/`Shift+G` top and bottom.
+- **Thread navigation**: `j`/`k` between conversations, arrows across message cards, `o` expand/collapse, `:` expand all, `Enter` reply-all, `Escape` exits a reply first, then returns to the list with your cursor and scroll position restored.
+- **Account switching**: `g 0` through `g 8` jump straight to `/mail/u/N/`. The palette lists accounts by email as it learns them.
+- **Calendar key**: `0` opens Google Calendar beside Gmail, `0 0` opens it in a new tab, always for the account you are in.
 
-## Install (Load unpacked)
+## Install
 
-1. Open `chrome://extensions` in Chrome (or any Chromium browser: Edge, Brave, Arc).
-2. Toggle **Developer mode** on (top-right).
-3. Click **Load unpacked** and select the `open-superhuman/extension` folder.
-4. Open [Gmail](https://mail.google.com) and hit **`Cmd/Ctrl + K`**.
+### From source (2 minutes, works today)
 
-No build step. Edit a file, hit the refresh icon on the extension card, reload Gmail.
+1. Clone this repo.
+2. Open `chrome://extensions` in any Chromium browser (Chrome, Edge, Brave, Arc).
+3. Toggle **Developer mode** on.
+4. Click **Load unpacked** and select the `extension/` folder.
+5. Open [Gmail](https://mail.google.com) and hit `Cmd/Ctrl+K`.
 
-For the smoothest hotkey behavior, turn on Gmail's own shortcuts:
-**Gmail → Settings → See all settings → Keyboard shortcuts on**.
+For the smoothest behavior, turn Gmail's own shortcuts on: Gmail Settings, See all settings, Keyboard shortcuts on.
+
+### Chrome Web Store
+
+Submission in progress. This README will link the listing once it is live.
+
+## Why it does not break (much)
+
+Gmail's DOM is undocumented and shifts under every extension that touches it. Mailpalette is engineered around that:
+
+- **Hash routing first.** Navigation, tabs, and account switching ride Gmail's own URL router, the most stable hook Gmail exposes. Those features survive any redesign.
+- **One selector registry.** Every load-bearing DOM hook lives in `gmail.SEL`. The palette command **"Verify Gmail selectors (smoke check)"** probes the registry live and names exactly what moved if Gmail changes.
+- **Loud failures.** If a control goes missing, you get a toast naming it, never a silently eaten keystroke.
+- **Structural fallbacks.** The two most load-bearing selectors (`tr.zA` rows, `[data-message-id]` messages) have shape-based fallbacks, so a Gmail class rename degrades gracefully instead of killing navigation.
+- **Real tests.** Six jsdom suites dispatch real keydown events against fixtures using verified Gmail selectors, plus a Playwright smoke test against live Gmail (`npm run smoke:gmail:readonly`).
 
 ## How it works
 
 ```
 extension/
   manifest.json            MV3 manifest (only the "storage" permission)
-  src/content/             injected into mail.google.com
-    storage.js             chrome.storage wrapper + defaults
-    gmail.js               drive Gmail: hash routing, toolbar clicks, compose DOM
-    accounts.js            detect + switch /mail/u/N accounts
-    calendar.js            open Google Calendar (half-window / new tab)
-    tabs.js                split-inbox tab bar + gear config modal
-    commands.js            the command registry (palette + hotkey source of truth)
-    palette.js             the Cmd+K overlay UI
-    hotkeys.js             key + chord engine
-    content.js             bootstrap
-    palette.css            scoped styles (palette, toasts, tab bar, config modal)
-  src/popup/               toolbar popup (quick toggles + configure tabs)
-  src/options/             settings: hotkey, tabs, accounts, shortcuts cheat sheet
+  src/shared/              hash helpers + the shortcut catalog (shared with options)
+  src/content/
+    gmail.js               the core: selector registry, realClick, context classifier
+    listnav.js             list cursor, multi-select, paging, position restore
+    threadnav.js           message-card cursor inside a conversation
+    tabs.js                split-inbox tab bar + config modal
+    commands.js            command registry (single source for palette + hotkeys)
+    palette.js / hotkeys.js  the Cmd+K overlay and the key/chord engine
+  src/popup/  src/options/  toolbar popup and the settings page
   src/background/          MV3 service worker (message relay)
 ```
 
-Design notes:
+Two principles explain most of the code:
 
-- **Navigation** and **split-inbox tabs** use Gmail's hash router (`#inbox`,
-  `#sent`, `#search/…`) — the most stable hook there is.
-- **Compose** clicks Gmail's stable `[gh="cm"]` button.
-- **Triage actions** click toolbar buttons by tooltip/aria-label, falling back to
-  Gmail's native key shortcut. Because these depend on Gmail's DOM, they're the
-  most likely thing to need a tweak after a Gmail redesign — they're isolated in
-  `gmail.js` and `commands.js`.
-- The **tab bar** re-injects itself as Gmail re-renders (a `MutationObserver` on
-  the main area).
+1. Gmail ignores synthetic keyboard events, so Mailpalette never fakes keystrokes. Every action drives a real Gmail control through a full pointer gesture (`gmail.realClick`).
+2. A context classifier (`getContext()`) gates every shortcut (palette, modal, compose, thread, list, search), so keys only fire where they make sense and never steal your typing.
 
-## Limitations & honesty
+## Develop and test
 
-- Gmail's DOM is undocumented and changes; toolbar-driven actions and the tab
-  bar's injection point may need updates over time.
-- Localized Gmail UIs may need the English tooltip strings in `gmail.js` /
-  `commands.js` translated.
-- The half-screen calendar opens a pop-up window; allow pop-ups for
-  `mail.google.com` if your browser blocks it.
+No build step. Edit a file, refresh the extension card, reload Gmail.
 
-## Roadmap ideas
+```bash
+cd extension
+npm install        # jsdom, dev only
+npm test           # 6 suites: unit, context classifier, full keyboard integration
+```
 
-- Per-command remappable keys, mode-aware hotkeys, and a `?` shortcuts overlay.
-- Tab recommendations learned from your usage.
+Read `CLAUDE.md` for the working guide (architecture, fragile areas, conventions) and `extension/SMOKE.md` for the live smoke test setup.
+
+## Limitations
+
+- English Gmail UIs only for label-matched actions today. Navigation works in any locale; translating the label strings in `gmail.js` is a welcome contribution.
+- Gmail redesigns can still move things. The verify command and the smoke test exist to make those one-minute fixes instead of mysteries.
+- The half-screen calendar needs pop-ups allowed for `mail.google.com`.
+
+## Roadmap
+
+- Default split-inbox preset (Inbox / Important and Starred / Other) with `[` `]` cycling.
+- Localized label matching.
 - Firefox (MV3) packaging.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

@@ -7,22 +7,22 @@
 // message first, then replies once that message is expanded. "o" always toggles
 // the focused card or expansion control. All driven by real clicks — Gmail
 // ignores synthetic keys.
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
-  const { gmail } = OpenSuperhuman;
-  const CURSOR_CLASS = "open-superhuman-msg-cursor";
+  const { gmail } = Mailpalette;
+  const CURSOR_CLASS = "mailpalette-msg-cursor";
   let cursorEl = null;
 
   function mainEl() {
-    return Array.from(document.querySelectorAll('[role="main"]')).filter((m) => gmail.isVisible(m))[0] || null;
+    return gmail.firstVisible(gmail.SEL.main);
   }
 
   function cards() {
     const main = mainEl();
     if (!main) return [];
-    return Array.from(main.querySelectorAll('[role="listitem"]')).filter(
-      (it) => gmail.isVisible(it) && it.querySelector(".gE")
+    return Array.from(main.querySelectorAll(gmail.SEL.card)).filter(
+      (it) => gmail.isVisible(it) && it.querySelector(gmail.SEL.cardHeader)
     );
   }
 
@@ -212,5 +212,5 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
   window.addEventListener("hashchange", reset);
 
-  OpenSuperhuman.threadnav = { move, moveArrow, toggleFocused, replyAllFocused, activateFocused, toggle, expandAllToggle, currentCard, reset };
+  Mailpalette.threadnav = { move, moveArrow, toggleFocused, replyAllFocused, activateFocused, toggle, expandAllToggle, currentCard, reset };
 })();

@@ -1,9 +1,9 @@
 // The Cmd+K command palette: an injected overlay with fuzzy search over the
 // command registry.
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
-  const { commands, storage } = OpenSuperhuman;
+  const { commands, storage } = Mailpalette;
 
   let root, input, list, results, open = false;
   let items = [];
@@ -32,8 +32,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function keyLabel(binding) {
-    if (window.OpenSuperhuman_KEYMAP && typeof OpenSuperhuman_KEYMAP.displayBinding === "function") {
-      return OpenSuperhuman_KEYMAP.displayBinding(binding);
+    if (window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.displayBinding === "function") {
+      return Mailpalette_KEYMAP.displayBinding(binding);
     }
     return String(binding || "");
   }
@@ -41,24 +41,24 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   function build() {
     if (root) return;
     root = document.createElement("div");
-    root.className = "open-superhuman-overlay";
+    root.className = "mailpalette-overlay";
     root.innerHTML = `
-      <div class="open-superhuman-modal" role="dialog" aria-label="Command palette">
-        <div class="open-superhuman-input-row">
-          <span class="open-superhuman-prompt"></span>
-          <input class="open-superhuman-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" />
+      <div class="mailpalette-modal" role="dialog" aria-label="Command palette">
+        <div class="mailpalette-input-row">
+          <span class="mailpalette-prompt"></span>
+          <input class="mailpalette-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" />
         </div>
-        <div class="open-superhuman-results"></div>
-        <div class="open-superhuman-footer">
+        <div class="mailpalette-results"></div>
+        <div class="mailpalette-footer">
           <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
           <span><kbd>↵</kbd> run</span>
           <span><kbd>esc</kbd> close</span>
         </div>
       </div>`;
     document.documentElement.appendChild(root);
-    root.querySelector(".open-superhuman-prompt").textContent = keyLabel("Mod+K");
-    input = root.querySelector(".open-superhuman-input");
-    results = root.querySelector(".open-superhuman-results");
+    root.querySelector(".mailpalette-prompt").textContent = keyLabel("Mod+K");
+    input = root.querySelector(".mailpalette-input");
+    results = root.querySelector(".mailpalette-results");
 
     root.addEventListener("mousedown", (e) => {
       if (e.target === root) hide();
@@ -112,25 +112,25 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
     results.innerHTML = "";
     if (!items.length) {
-      results.innerHTML = `<div class="open-superhuman-empty">No matching commands</div>`;
+      results.innerHTML = `<div class="mailpalette-empty">No matching commands</div>`;
       return;
     }
     let lastGroup = null;
     items.forEach((cmd, i) => {
       if (cmd.group && cmd.group !== lastGroup) {
         const h = document.createElement("div");
-        h.className = "open-superhuman-group";
+        h.className = "mailpalette-group";
         h.textContent = cmd.group;
         results.appendChild(h);
         lastGroup = cmd.group;
       }
       const row = document.createElement("div");
-      row.className = "open-superhuman-row" + (i === active ? " open-superhuman-row--active" : "");
+      row.className = "mailpalette-row" + (i === active ? " mailpalette-row--active" : "");
       row.dataset.i = i;
       const keys = (cmd.keys || []).map((k) => `<kbd>${escapeHtml(keyLabel(k))}</kbd>`).join("");
       row.innerHTML = `
-        <span class="open-superhuman-row-title">${escapeHtml(title(cmd))}</span>
-        <span class="open-superhuman-row-keys">${cmd.hint ? `<span class="open-superhuman-hint">${escapeHtml(cmd.hint)}</span>` : ""}${keys}</span>`;
+        <span class="mailpalette-row-title">${escapeHtml(title(cmd))}</span>
+        <span class="mailpalette-row-keys">${cmd.hint ? `<span class="mailpalette-hint">${escapeHtml(cmd.hint)}</span>` : ""}${keys}</span>`;
       row.addEventListener("mouseenter", () => {
         if (Date.now() - kbNavAt < 250) return; // keyboard nav wins briefly
         active = i;
@@ -143,10 +143,10 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function highlight() {
-    results.querySelectorAll(".open-superhuman-row").forEach((r) => {
-      r.classList.toggle("open-superhuman-row--active", parseInt(r.dataset.i, 10) === active);
+    results.querySelectorAll(".mailpalette-row").forEach((r) => {
+      r.classList.toggle("mailpalette-row--active", parseInt(r.dataset.i, 10) === active);
     });
-    const el = results.querySelector(".open-superhuman-row--active");
+    const el = results.querySelector(".mailpalette-row--active");
     if (el) el.scrollIntoView({ block: "nearest" });
   }
 
@@ -159,8 +159,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       try {
         cmd.run();
       } catch (err) {
-        console.error("[OpenSuperhuman] command failed", cmd.id, err);
-        OpenSuperhuman.toast("Command failed: " + (cmd.id || "unknown"), { kind: "warn" });
+        console.error("[Mailpalette] command failed", cmd.id, err);
+        Mailpalette.toast("Command failed: " + (cmd.id || "unknown"), { kind: "warn" });
       }
     }, 30);
   }
@@ -168,7 +168,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   function show() {
     build();
     open = true;
-    root.classList.add("open-superhuman-overlay--open");
+    root.classList.add("mailpalette-overlay--open");
     input.value = "";
     render();
     setTimeout(() => input.focus(), 0);
@@ -177,7 +177,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   function hide() {
     if (!root) return;
     open = false;
-    root.classList.remove("open-superhuman-overlay--open");
+    root.classList.remove("mailpalette-overlay--open");
     input.blur();
   }
 
@@ -189,5 +189,5 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  OpenSuperhuman.palette = { show, hide, toggle, isOpen: () => open, move, confirm };
+  Mailpalette.palette = { show, hide, toggle, isOpen: () => open, move, confirm };
 })();

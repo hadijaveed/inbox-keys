@@ -1,8 +1,8 @@
-# Open Superhuman
+# Mailpalette
 
 A Superhuman-style layer for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3). It adds a Cmd+K command palette, keyboard shortcuts and chords, split-inbox tabs, fast account switching, and a calendar key. No Gmail API, no server, no AI, no build step. The only permission requested is `storage` (plus `host_permissions` for `mail.google.com`). Everything works by driving Gmail's own UI from a content script.
 
-Current version: 0.3.5. Tests: 4 suites, all green (`cd extension && npm test`).
+Current version: 0.4.0. Tests: 6 suites, all green (`cd extension && npm test`).
 
 This file is the working guide for agents. `HANDOFF.md` has the longer narrative and the bug history; `README.md` is the user-facing overview. Read this before changing behavior.
 
@@ -19,7 +19,7 @@ Corollary for navigation: drive Gmail's hash router directly (`location.hash = "
 
 ## Architecture
 
-Chrome MV3. Content scripts share a single `window.OpenSuperhuman` namespace and load in a fixed order (see `manifest.json` `content_scripts`):
+Chrome MV3. Content scripts share a single `window.Mailpalette` namespace and load in a fixed order (see `manifest.json` `content_scripts`):
 
 ```
 src/shared/hashutil.js    pure hash helpers (thread detection, parent hash). Unit-tested in Node.
@@ -46,7 +46,7 @@ src/background/           MV3 service worker (message relay).
 
 Where things live: keys and contexts are declared once in `keymap.js`; `commands.js` joins each catalog id to its `run()`. To add or change a binding you usually touch both. The palette is rebuilt every open so key overrides, tabs, and accounts stay current.
 
-Isolated world caveat: content scripts run in the ISOLATED world, so `window.OpenSuperhuman` is invisible to page main-world JS. Browser-automation tools and the devtools console default to the main world and will see `OpenSuperhuman` as undefined. DOM and `location.hash` inspection are world-independent, so verify live state through those. In Chrome devtools you can switch the console context to the extension content script to reach `OpenSuperhuman`.
+Isolated world caveat: content scripts run in the ISOLATED world, so `window.Mailpalette` is invisible to page main-world JS. Browser-automation tools and the devtools console default to the main world and will see `Mailpalette` as undefined. DOM and `location.hash` inspection are world-independent, so verify live state through those. In Chrome devtools you can switch the console context to the extension content script to reach `Mailpalette`.
 
 ## The context classifier (gmail.getContext)
 
@@ -79,6 +79,15 @@ Gmail routes everything through the URL hash. The conversation id is always the 
 `hashIsThread(hash)` checks whether the last segment looks like a thread id (a long `[A-Za-z0-9_-]` token, floor 20 chars; real ids are around 32). The floor is low on purpose so a real id is never missed; a rare long single-word query can match by shape, but `getContext` also requires a rendered message, so it never produces a false `threadView`. `parentHash(hash)` strips the trailing thread id. Both are pure and fully unit-tested.
 
 ## Fragile areas and the real Gmail selectors
+
+Every load-bearing selector lives in ONE registry: `gmail.SEL` at the top of `gmail.js`. Code reads `SEL.*` (listnav, hotkeys, threadnav, tabs included); `verifySelectors()` probes the registry and is surfaced in the palette as "Verify Gmail selectors (smoke check)". When a shortcut dies in the field, run that command first: the failing probe names exactly which Gmail hook moved. The Playwright smoke (`npm run smoke:gmail:readonly`, see `SMOKE.md`) probes the same names from outside.
+
+Hardening rules (audited Jun 2026, all enforced by tests):
+
+- Failed actions toast. An action the user invoked must never silently eat the keystroke; `clickOr(el, what)` and `action()` toast "Gmail control not found: X" when the lookup fails. Exception: list paging stays silent at boundaries and in sectioned inboxes (deliberate, the pager is legitimately absent there).
+- No synthetic-keyboard fallbacks anywhere. Gmail ignores synthetic keys, so such a fallback "succeeds" while doing nothing and masks breakage. `sendKey` was removed; the sim test pins its absence.
+- `findControl` probes toolbars (`[gh="tm"]`, `[gh="mtb"]`, `[role="toolbar"]`) before the document-wide scan, because `controlLabel` falls back to textContent and a newsletter link whose text is exactly "Mute" used to get realClicked. Non-toolbar controls (Undo snackbar, Unsubscribe header button) are still reached by the fallback scan.
+- Structural fallbacks for the two single points of failure: `listnav.rows()` falls back to `[gh="tl"] tr` rows carrying a `[role="checkbox"]` if `tr.zA` is renamed; `getContext` threadView falls back to `SEL.threadFallback` (card header / message body inside main) if `[data-message-id]` is renamed, still gated by `inThread()`.
 
 These selectors were verified live in Chrome and are mirrored in the test fixtures on purpose. If Gmail changes its DOM, recheck these first.
 
@@ -148,6 +157,8 @@ Live-testing safety: when testing against real Gmail, take no destructive action
 - Split-inbox tab bar with a gear config modal. Each tab is a saved Gmail search driving the hash router. Tab and Shift+Tab cycle the tabs. Add/rename/remove, suggestion chips, persistence.
 - List cursor and multi-select over rows. Shift+Arrow is an anchor-based range (Shift+Down grows, Shift+Up shrinks and deselects the row it leaves).
 - Thread message navigation with j/k across message cards. Enter reply-alls. Escape exits an open reply first, then a second Escape goes back to the list. The colon key expands or collapses all messages.
+- "Verify Gmail selectors (smoke check)" in the palette: probes the `gmail.SEL` registry for the current surface, toasts a pass/fail summary, details in the console. First diagnostic step for any "key does nothing" report.
+- Failed actions toast "Gmail control not found: X" instead of silently eating the keystroke (paging excepted, see its caveat).
 - List paging with Shift+N (next/older page) and Shift+P (previous/newer page) via `gmail.nextPage()`/`prevPage()`. Two pager flavors: All Mail / Sent / labels use the toolbar buttons `aria-label="Older"`/`"Newer"`; SEARCH RESULTS keep that toolbar in the DOM but HIDDEN and expose their own visible pager `aria-label="Next results"`/`"Previous results"`. `nextPage`/`prevPage` try Older/Newer first, then fall through to Next/Previous results (`exactButton` filters by visibility, so the hidden ones are skipped). After the page turns, `listnav.page(dir)` waits for the hash to gain/lose its `/pN` segment, then pins the new page to the TOP with the cursor on row one (Gmail otherwise leaves the scroll near the bottom). Engine-special-cased before the editable guard so it also works from search where Gmail keeps the search box focused. CAVEAT: a Priority ("Important first") / sectioned inbox has NO global pager (sections use "Show more messages", and `#inbox/p2` redirects back to `#inbox`), so paging is a harmless no-op in that view. Verified live Jun 2026: `#all` → `#all/p2`, `#label/<x>` → `/p2`, `#search/<q>` → `/p2` (the last via "Next results").
 
 ## Pending work
@@ -163,13 +174,13 @@ Most plumbing already exists in `tabs.js` (bar, hash navigation, active detectio
 - Verify the "Other" catch-all query live so it truly equals inbox minus the splits.
 - The AI Auto-Label layer stays a later phase; it needs a model and a backend, so it is out of scope for this DOM-only, no-backend MVP.
 
-### 2. Live smoke test
+### 2. Live smoke test (done, two layers)
 
-A periodic real-Gmail smoke test would catch Gmail-side DOM renames that the jsdom fixtures cannot. Good future task.
+In-Gmail: the palette command "Verify Gmail selectors (smoke check)" runs `gmail.verifySelectors()` over the selector registry and toasts what is missing on the current surface. Outside: `npm run smoke:gmail:readonly` (Playwright, see `SMOKE.md`) probes the same names against real Gmail with a logged-in test profile. Both catch Gmail-side DOM renames the jsdom fixtures cannot.
 
-### 3. Internal rename (done)
+### 3. Rename to Mailpalette (done)
 
-The internal namespace was renamed from the old `CMDK` carryover to `window.OpenSuperhuman`, and the CSS prefix from `cmdk-` to `open-superhuman-` (e.g. `open-superhuman-tab`, `open-superhuman-overlay`, `open-superhuman-cursor`), in one mechanical pass across every source and test file with `npm test` green. The runtime message types are now `open-superhuman:...` and the synthetic-event tag is `__openSuperhumanSynthetic`. The user-facing `Cmd+K` / `⌘K` shortcut text was deliberately left untouched (it is the actual keystroke, not the old name).
+The product is Mailpalette everywhere (was Open Superhuman; before that the internal namespace was a `CMDK` carryover). Current state: namespace `window.Mailpalette`, keymap global `Mailpalette_KEYMAP`, CSS prefix `mailpalette-` (e.g. `mailpalette-tab`, `mailpalette-overlay`, `mailpalette-cursor`), runtime message types `mailpalette:...`, npm package `mailpalette`, manifest name "Mailpalette: Gmail command palette, hotkeys, split inbox & calendar". Done as one mechanical pass with `npm test` green. The repo directory is still `open-superhuman/` (renaming it is a user-side move; it breaks open editor sessions and remotes). The user-facing `Cmd+K` / `⌘K` shortcut text is the actual keystroke, not a brand name.
 
 ## Conventions
 

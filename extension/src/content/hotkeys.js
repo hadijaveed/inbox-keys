@@ -4,13 +4,13 @@
 // sense, and only fire when their .contexts include the current context (or "*").
 //
 // When we claim a key we consume() it (preventDefault + stopImmediatePropagation
-// in the capture phase) so Gmail never double-handles it. Synthetic keys that we
-// dispatch via gmail.sendKey are tagged and ignored on re-entry, killing the
-// recursion / double-fire loop.
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+// in the capture phase) so Gmail never double-handles it. We never dispatch
+// synthetic keyboard events ourselves — Gmail ignores them (isTrusted), so every
+// action drives a real control via gmail.realClick instead.
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
-  const { commands, palette, storage, gmail, calendar, listnav, threadnav } = OpenSuperhuman;
+  const { commands, palette, storage, gmail, calendar, listnav, threadnav } = Mailpalette;
 
   let chordPrefix = null;
   let chordTimer = null;
@@ -33,11 +33,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function isSearchInput(el) {
-    return !!(
-      el &&
-      el.matches &&
-      el.matches('input[aria-label="Search mail"], input[name="q"]')
-    );
+    return !!(el && el.matches && el.matches(gmail.SEL.searchInput));
   }
 
   function isSubmittedSearchView() {
@@ -50,7 +46,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
   function hasVisibleListSurface() {
     return Array.from(
-      document.querySelectorAll('tr.zA, [role="main"] [gh="tl"], [role="main"] [role="checkbox"]')
+      document.querySelectorAll(`${gmail.SEL.listRow}, ${gmail.SEL.threadList}, [role="main"] ${gmail.SEL.rowCheckbox}`)
     ).some((el) => gmail.isVisible && gmail.isVisible(el));
   }
 
@@ -149,8 +145,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function commandHasKey(id, binding) {
-    if (!window.OpenSuperhuman_KEYMAP || typeof OpenSuperhuman_KEYMAP.keysFor !== "function") return true;
-    return OpenSuperhuman_KEYMAP.keysFor(id, storage.get("keyOverrides") || {}).includes(binding);
+    if (!window.Mailpalette_KEYMAP || typeof Mailpalette_KEYMAP.keysFor !== "function") return true;
+    return Mailpalette_KEYMAP.keysFor(id, storage.get("keyOverrides") || {}).includes(binding);
   }
 
   // Calendar key: "0" toggles Gmail's side calendar panel; a quick "0 0" opens
@@ -182,7 +178,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     if (chordPrefix === "g" && /^[0-8]$/.test(key)) {
       clearChord();
       consume(e);
-      OpenSuperhuman.accounts.switchTo(parseInt(key, 10));
+      Mailpalette.accounts.switchTo(parseInt(key, 10));
       return true;
     }
 
@@ -221,10 +217,6 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
   function onKeydown(e) {
     if (!storage.get("enabled")) return;
-
-    // Ignore the synthetic events we dispatch via gmail.sendKey (capture phase
-    // re-entry) so native fallbacks don't recurse back into us.
-    if (e.__openSuperhumanSynthetic || (gmail.isDispatchingSynthetic && gmail.isDispatchingSynthetic())) return;
 
     // Palette toggle works everywhere (even while typing).
     if (matchesModK(e)) {
@@ -313,8 +305,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     ) {
       consume(e);
       searchEditing = false;
-      if (e.shiftKey) OpenSuperhuman.tabs.prev();
-      else OpenSuperhuman.tabs.next();
+      if (e.shiftKey) Mailpalette.tabs.prev();
+      else Mailpalette.tabs.next();
       return;
     }
 
@@ -336,8 +328,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     ) {
       consume(e);
       searchEditing = false;
-      if (e.key === "N" || e.key === "n") OpenSuperhuman.listnav.page(1);
-      else OpenSuperhuman.listnav.page(-1);
+      if (e.key === "N" || e.key === "n") Mailpalette.listnav.page(1);
+      else Mailpalette.listnav.page(-1);
       return;
     }
 
@@ -475,5 +467,5 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     searchEditing = true;
   }
 
-  OpenSuperhuman.hotkeys = { install, armSearchEditing };
+  Mailpalette.hotkeys = { install, armSearchEditing };
 })();

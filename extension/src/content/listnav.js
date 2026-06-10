@@ -6,11 +6,11 @@
 // the rows' real controls: the [role="checkbox"], the per-row hover buttons,
 // and the toolbar (which acts on the checked set). All clicks go through
 // gmail.realClick (full pointer+mouse gesture) so Gmail actually reacts.
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
-  const { gmail } = OpenSuperhuman;
-  const CURSOR_CLASS = "open-superhuman-cursor";
+  const { gmail } = Mailpalette;
+  const CURSOR_CLASS = "mailpalette-cursor";
   let cursor = -1;
   let anchor = -1; // shift-select range anchor; -1 means no shift session active
   // "Act on the row I'm pointing at." A monotonic counter orders the two ways the
@@ -24,7 +24,14 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   let keyNavSeq = 0;
 
   function rows() {
-    return Array.from(document.querySelectorAll("tr.zA")).filter((r) => gmail.isVisible(r));
+    const r = Array.from(document.querySelectorAll(gmail.SEL.listRow)).filter((row) => gmail.isVisible(row));
+    if (r.length) return r;
+    // Structural fallback: if Gmail ever renames .zA, any visible row inside
+    // the thread-list area that carries a per-row checkbox is a thread row.
+    // Keeps j/k/x/e/Enter alive through a class rename instead of dying with it.
+    return Array.from(document.querySelectorAll(gmail.SEL.listRowFallback)).filter(
+      (row) => gmail.isVisible(row) && row.querySelector(gmail.SEL.rowCheckbox)
+    );
   }
 
   // Keep the cursor valid: reuse it if still in range, else adopt Gmail's own
@@ -190,7 +197,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   // A visible toolbar button (acts on the checked set) by exact label.
   function toolbarButton(label) {
     const bars = Array.from(
-      document.querySelectorAll('[gh="tm"], [gh="mtb"], [role="toolbar"]')
+      document.querySelectorAll(gmail.SEL.toolbars)
     ).filter((b) => gmail.isVisible(b));
     for (const bar of bars) {
       const btn = Array.from(
@@ -203,7 +210,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
 
   function toolbarButtonMatching(patterns) {
     const bars = Array.from(
-      document.querySelectorAll('[gh="tm"], [gh="mtb"], [role="toolbar"]')
+      document.querySelectorAll(gmail.SEL.toolbars)
     ).filter((b) => gmail.isVisible(b));
     for (const bar of bars) {
       const btn = Array.from(
@@ -258,8 +265,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function cannotArchive() {
-    if (OpenSuperhuman.toast) {
-      OpenSuperhuman.toast("Not in Inbox, nothing to archive", { kind: "warn" });
+    if (Mailpalette.toast) {
+      Mailpalette.toast("Not in Inbox, nothing to archive", { kind: "warn" });
     }
   }
 
@@ -516,7 +523,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     const prev = lastHash;
     const now = location.hash;
     lastHash = now;
-    const { hashutil } = OpenSuperhuman;
+    const { hashutil } = Mailpalette;
     if (hashutil.hashIsThread(now)) {
       if (hashutil.parentHash(now) === prev) {
         // Dove from a list into one of its threads: remember where we were.
@@ -540,5 +547,5 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     reset();
   });
 
-  OpenSuperhuman.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, snooze, withSelection, withTemporarySelection, reset, focusTop, focusBottom, syncEdgeAfterScroll, page };
+  Mailpalette.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, snooze, withSelection, withTemporarySelection, reset, focusTop, focusBottom, syncEdgeAfterScroll, page };
 })();

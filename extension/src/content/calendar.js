@@ -5,10 +5,10 @@
 //          falls back to a half-screen popup window if the button isn't there.
 //   0 0 -> open Google Calendar in a new browser tab.
 // The calendar opens for the account you're currently in (/calendar/u/N).
-window.OpenSuperhuman = window.OpenSuperhuman || {};
+window.Mailpalette = window.Mailpalette || {};
 
 (function () {
-  const { gmail } = OpenSuperhuman;
+  const { gmail } = Mailpalette;
 
   function url() {
     const idx = gmail ? gmail.accountIndex() : 0;
@@ -60,8 +60,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     const left = (screen.availLeft || 0) + (sw - w);
     const top = screen.availTop || 0;
     const feats = `popup=yes,width=${w},height=${sh},left=${left},top=${top},noopener`;
-    const win = window.open(url(), "open-superhuman-calendar", feats);
-    if (!win) OpenSuperhuman.toast("Allow pop-ups for mail.google.com to open the calendar", { kind: "warn" });
+    const win = window.open(url(), "mailpalette-calendar", feats);
+    if (!win) Mailpalette.toast("Allow pop-ups for mail.google.com to open the calendar", { kind: "warn" });
   }
 
   function open(mode) {
@@ -74,5 +74,5 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     if (!clickSidePanel()) openPopup();
   }
 
-  OpenSuperhuman.calendar = { open };
+  Mailpalette.calendar = { open };
 })();
