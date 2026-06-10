@@ -13,7 +13,7 @@ An open-source, Superhuman-style layer for Gmail: a **Cmd+K command palette**,
 - **Command palette (`Cmd/Ctrl + K`)** — fuzzy-search every action: compose,
   triage, jump to any folder or tab, switch accounts, run anything.
 - **Superhuman-style hotkeys** — `c` compose, `e` archive, `r`/`a`/`f`
-  reply/reply-all/forward, `s` star, `b` snooze, `/` search, and `g`-prefixed
+  reply/reply-all/forward, `s` star, `h` snooze, `/` search, and `g`-prefixed
   chords (`g i` inbox, `g t` sent, `g d` drafts, `g a` all mail, `g h` snoozed…).
 - **Split-inbox tabs** — a tab bar at the top of Gmail where each tab is any
   Gmail search (`is:unread`, `label:Clients`, `from:boss@x.com`, `has:attachment`,

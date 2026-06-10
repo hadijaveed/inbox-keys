@@ -26,7 +26,7 @@
     { id: "mark-read-unread", title: "Mark read or unread", group: "Triage", defaultKeys: ["u"], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "mark-read", title: "Mark as read", group: "Triage", defaultKeys: [], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "mark-unread", title: "Mark as unread", group: "Triage", defaultKeys: [], contexts: ["inboxList", "threadView"], fixed: false },
-    { id: "snooze", title: "Snooze", group: "Triage", defaultKeys: ["h", "b"], contexts: ["inboxList", "threadView"], fixed: false },
+    { id: "snooze", title: "Snooze", group: "Triage", defaultKeys: ["h"], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "report-spam", title: "Report spam", group: "Triage", defaultKeys: ["!"], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "star", title: "Star / toggle star", group: "Triage", defaultKeys: ["s"], contexts: ["inboxList", "threadView"], fixed: false },
     { id: "mute", title: "Mute", group: "Triage", defaultKeys: ["Shift+M"], contexts: ["inboxList", "threadView"], fixed: true },
@@ -48,9 +48,11 @@
     { id: "go-trash", title: "Go to Trash", group: "Go to", defaultKeys: [], contexts: DEFAULT_CONTEXTS, fixed: false },
     { id: "go-settings", title: "Open Settings", group: "Go to", defaultKeys: [], contexts: DEFAULT_CONTEXTS, fixed: false },
 
-    // List scrolling
+    // List scrolling + paging
     { id: "go-top", title: "Go to top of list", group: "Navigation", defaultKeys: ["g g"], contexts: ["inboxList"], fixed: false },
     { id: "go-bottom", title: "Go to bottom of list", group: "Navigation", defaultKeys: ["Shift+G"], contexts: ["inboxList"], fixed: true },
+    { id: "next-page", title: "Next page (older)", group: "Navigation", defaultKeys: ["Shift+N"], contexts: ["inboxList"], fixed: true },
+    { id: "prev-page", title: "Previous page (newer)", group: "Navigation", defaultKeys: ["Shift+P"], contexts: ["inboxList"], fixed: true },
     { id: "expand-message", title: "Expand / collapse focused message", group: "Navigation", defaultKeys: ["o"], contexts: ["threadView"], fixed: false },
     { id: "expand-all", title: "Expand / collapse all messages", group: "Navigation", defaultKeys: ["Shift+O"], contexts: ["threadView"], fixed: true },
 

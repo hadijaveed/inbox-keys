@@ -312,7 +312,10 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   function snooze() {
-    return realClick(findControl([/^Snooze$/i, /^Remind me$/i]));
+    const btn = findControl([/^Snooze\b/i, /^Remind me\b/i]);
+    if (btn) return realClick(btn);
+    if (OpenSuperhuman.toast) OpenSuperhuman.toast("No snooze button found", { kind: "warn" });
+    return false;
   }
 
   function markNotDone() {
@@ -550,6 +553,26 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     return realClick(exactButton("Newer"));
   }
 
+  // List pager: in a list view Gmail's "Older"/"Newer" toolbar buttons step to the
+  // next/previous PAGE of results (the same controls page conversations in a thread).
+  // Newer = previous page, Older = next page. The button is aria-disabled at the
+  // first/last page, so realClick is a harmless no-op at the boundary.
+  //
+  // SEARCH RESULTS are the exception and caused the "doesn't work with a label or
+  // search" report: a search view still renders the "Older"/"Newer" toolbar but
+  // keeps it HIDDEN, and exposes its OWN visible pager labeled "Next results" /
+  // "Previous results" instead (verified live: #search/<q> → #search/<q>/p2).
+  // exactButton already filters by visibility, so it skips the hidden Older/Newer
+  // and we fall through to the search labels. Labels and All Mail keep "Older"/
+  // "Newer" visible, so they use the first match. Next = older/forward, Previous =
+  // newer/back, matching the Older/Newer direction.
+  function nextPage() {
+    return realClick(exactButton("Older") || exactButton("Next results"));
+  }
+  function prevPage() {
+    return realClick(exactButton("Newer") || exactButton("Previous results"));
+  }
+
   // Archive the open thread via its toolbar icon (returns to the list).
   function archiveThread() {
     return realClick(exactButton("Archive"));
@@ -755,6 +778,8 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     forwardThread,
     nextThread,
     prevThread,
+    nextPage,
+    prevPage,
     archiveThread,
     exitReply,
     listScrollTop,

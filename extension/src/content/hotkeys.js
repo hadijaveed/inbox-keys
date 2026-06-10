@@ -318,6 +318,29 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
       return;
     }
 
+    // Shift+N / Shift+P: page the message list forward (older) / back (newer) via
+    // Gmail's own "Older"/"Newer" pager. Like Tab, this must work on any list
+    // surface, including search results where Gmail keeps the search box focused,
+    // so it sits before the editable guard. Protected from compose/thread/modal
+    // and from editable fields other than the search box.
+    if (
+      e.shiftKey &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      (e.key === "N" || e.key === "n" || e.key === "P" || e.key === "p") &&
+      !gmail.inThread() &&
+      (ctx === "inboxList" || ctx === "unknown" || ctx === "searchFocused") &&
+      hasVisibleListSurface() &&
+      (!isEditable(e.target) || isSearchInput(e.target))
+    ) {
+      consume(e);
+      searchEditing = false;
+      if (e.key === "N" || e.key === "n") OpenSuperhuman.listnav.page(1);
+      else OpenSuperhuman.listnav.page(-1);
+      return;
+    }
+
     // Modified Superhuman bindings. Keep compose/editable fields protected so
     // Gmail/browser formatting shortcuts still work while writing.
     if (!isEditable(e.target) && !e.altKey && !e.shiftKey && (e.metaKey || e.ctrlKey)) {

@@ -69,6 +69,35 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
     setTimeout(() => focusEdge(dir), 220);
   }
 
+  // Page the list forward (older) / back (newer) via Gmail's pager, then pin the
+  // NEW page to the top with the cursor on the first row. Gmail loads the next
+  // page asynchronously and leaves the scroll where it was (often near the
+  // bottom, since the pager is reached from there), so we must wait for the page
+  // to actually change before scrolling — otherwise we'd scroll the old page,
+  // which Gmail then replaces. The signal that the page turned is the hash
+  // gaining/losing its trailing /pN segment. At a boundary (first/last page) the
+  // pager is a no-op and the hash never changes, so waitFor just gives up and
+  // nothing moves. Re-pinning a couple of times covers Gmail's post-load
+  // re-render settling the scroll back down.
+  function page(dir) {
+    const before = location.hash;
+    const ok = dir > 0 ? gmail.nextPage() : gmail.prevPage();
+    const pinTop = () => {
+      gmail.listScrollTop();
+      focusEdge(-1);
+    };
+    waitFor(
+      () => (location.hash !== before && rows().length ? true : null),
+      () => {
+        pinTop();
+        setTimeout(pinTop, 120);
+        setTimeout(pinTop, 320);
+      },
+      () => {}
+    );
+    return ok;
+  }
+
   function move(dir) {
     const r = rows();
     if (!r.length) return;
@@ -336,6 +365,7 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   }
 
   const READ_PATTERNS = [/^Mark as read$/i, /^Mark as unread$/i, /^Mark read$/i, /^Mark unread$/i];
+  const SNOOZE_PATTERNS = [/^Snooze\b/i, /^Remind me\b/i];
 
   function markReadUnread() {
     if (selectedRows().length) {
@@ -363,6 +393,26 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
         }, 120);
       },
       () => setSelected(row, false)
+    );
+  }
+
+  function snooze() {
+    const sel = selectedRows();
+    if (sel.length > 1) {
+      const b = toolbarButtonMatching(SNOOZE_PATTERNS);
+      if (b) return gmail.realClick(b);
+      return gmail.snooze();
+    }
+    const row = cursorRow();
+    if (!row) return false;
+    sel.forEach((selected) => {
+      if (selected !== row) setSelected(selected, false);
+    });
+    setSelected(row, true);
+    return waitFor(
+      () => toolbarButtonMatching(SNOOZE_PATTERNS),
+      (b) => gmail.realClick(b),
+      () => gmail.snooze()
     );
   }
 
@@ -425,5 +475,5 @@ window.OpenSuperhuman = window.OpenSuperhuman || {};
   // A fresh list (navigation, account switch) should start the cursor over.
   window.addEventListener("hashchange", reset);
 
-  OpenSuperhuman.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, withSelection, withTemporarySelection, reset, focusTop, focusBottom, syncEdgeAfterScroll };
+  OpenSuperhuman.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, snooze, withSelection, withTemporarySelection, reset, focusTop, focusBottom, syncEdgeAfterScroll, page };
 })();

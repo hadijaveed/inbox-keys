@@ -495,6 +495,117 @@ function wireList(w) {
   assert.equal(w.__lastScrollIntoViewOptions.block, "start", "top jump should align the cursor at the top edge");
 }
 
+// Shift+N / Shift+P page the message list via Gmail's Older/Newer pager. Works
+// from the list, and from search results where Gmail keeps the search box focused.
+{
+  const pager = `
+    <input aria-label="Search mail" name="q" />
+    <div role="main">
+      <div gh="tl"><table><tbody>
+        <tr class="zA" data-row="one"><td><div role="checkbox" aria-checked="false"></div></td><td><span class="bog">one</span></td></tr>
+        <tr class="zA" data-row="two"><td><div role="checkbox" aria-checked="false"></div></td><td><span class="bog">two</span></td></tr>
+      </tbody></table></div>
+    </div>
+    <div gh="tm">
+      <div role="button" aria-label="Newer">Newer</div>
+      <div role="button" aria-label="Older">Older</div>
+    </div>`;
+
+  // From the list (nothing editable focused).
+  {
+    const w = load(pager, "#inbox");
+    let older = false, newer = false;
+    w.document.querySelector('[aria-label="Older"]').addEventListener("click", () => { older = true; });
+    w.document.querySelector('[aria-label="Newer"]').addEventListener("click", () => { newer = true; });
+
+    const n = press(w, "N", { target: w.document.body, shiftKey: true });
+    assert.equal(n.defaultPrevented, true, "Shift+N is claimed in the list");
+    assert.equal(older, true, "Shift+N pages forward by clicking Older");
+
+    const p = press(w, "P", { target: w.document.body, shiftKey: true });
+    assert.equal(p.defaultPrevented, true, "Shift+P is claimed in the list");
+    assert.equal(newer, true, "Shift+P pages back by clicking Newer");
+  }
+
+  // From search results with the search box focused (searchEditing armed): paging
+  // must still work, like Tab, since it sits before the editable guard.
+  {
+    const w = load(pager, "#search/promo");
+    let older = false;
+    w.document.querySelector('[aria-label="Older"]').addEventListener("click", () => { older = true; });
+    const search = w.document.querySelector('input[name="q"]');
+    w.OpenSuperhuman.hotkeys.armSearchEditing();
+    search.focus();
+
+    const n = press(w, "N", { target: search, shiftKey: true });
+    assert.equal(n.defaultPrevented, true, "Shift+N is claimed even with the search box focused");
+    assert.equal(older, true, "Shift+N pages search results forward");
+  }
+
+  // Paging pins the NEW page to the top. Gmail loads the next page async and
+  // leaves the scroll near the bottom (where the pager was reached); once the
+  // page turns (the hash gains its /pN segment) we reset the list to the top and
+  // drop the cursor on the first row, instead of landing at the bottom.
+  {
+    const w = load(pager, "#inbox");
+    const main = w.document.querySelector('[role="main"]');
+    main.style.overflowY = "scroll";
+    Object.defineProperty(main, "scrollHeight", { value: 4000, configurable: true });
+    Object.defineProperty(main, "clientHeight", { value: 500, configurable: true });
+    main.scrollTop = 4000; // arrived at the bottom, as if scrolled down to reach the pager
+    // Older turns the page: model Gmail updating the hash to the next page.
+    w.document.querySelector('[aria-label="Older"]').addEventListener("click", () => {
+      w.location.hash = "#inbox/p2";
+    });
+
+    const n = press(w, "N", { target: w.document.body, shiftKey: true });
+    assert.equal(n.defaultPrevented, true, "Shift+N is claimed in the list");
+    assert.equal(main.scrollTop, 0, "after the page turns, the list scrolls back to the top");
+    assert.equal(rows(w)[0].classList.contains("open-superhuman-cursor"), true, "after paging, the cursor lands on the first row");
+  }
+
+  // Search results are the exception: Gmail keeps the "Older"/"Newer" toolbar in
+  // the DOM but HIDDEN, and exposes its own visible pager labeled "Next results" /
+  // "Previous results". This is what caused "doesn't work with a label or search".
+  // Paging must fall through the hidden Older/Newer to the visible search labels.
+  {
+    const searchPager = `
+      <input aria-label="Search mail" name="q" />
+      <div role="main">
+        <div gh="tl"><table><tbody>
+          <tr class="zA" data-row="s1"><td><div role="checkbox" aria-checked="false"></div></td><td><span class="bog">s1</span></td></tr>
+        </tbody></table></div>
+      </div>
+      <div gh="tm">
+        <div role="button" aria-label="Newer">Newer</div>
+        <div role="button" aria-label="Older">Older</div>
+      </div>
+      <div class="search-pager">
+        <div role="button" aria-label="Previous results">prev</div>
+        <div role="button" aria-label="Next results">next</div>
+      </div>`;
+    const w = load(searchPager, "#search/promo");
+    // The leftover toolbar Older/Newer are present but hidden (0x0), as in real
+    // search results; isVisible must skip them so the fallback labels win.
+    ["Older", "Newer"].forEach((l) => {
+      w.document.querySelector(`[aria-label="${l}"]`).getBoundingClientRect = () => ({ width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 });
+    });
+    let oldClicked = false, nextClicked = false, prevClicked = false;
+    w.document.querySelector('[aria-label="Older"]').addEventListener("click", () => { oldClicked = true; });
+    w.document.querySelector('[aria-label="Next results"]').addEventListener("click", () => { nextClicked = true; w.location.hash = "#search/promo/p2"; });
+    w.document.querySelector('[aria-label="Previous results"]').addEventListener("click", () => { prevClicked = true; });
+
+    const n = press(w, "N", { target: w.document.body, shiftKey: true });
+    assert.equal(n.defaultPrevented, true, "Shift+N is claimed in search results");
+    assert.equal(nextClicked, true, "Shift+N pages search via 'Next results' when Older is hidden");
+    assert.equal(oldClicked, false, "Shift+N must not click the hidden 'Older' toolbar button");
+
+    const p = press(w, "P", { target: w.document.body, shiftKey: true });
+    assert.equal(p.defaultPrevented, true, "Shift+P is claimed in search results");
+    assert.equal(prevClicked, true, "Shift+P pages search via 'Previous results' when Newer is hidden");
+  }
+}
+
 // Tab and Shift+Tab cycle split-inbox tabs only from the list context.
 {
   const w = load(listFixture(), "#inbox");
@@ -1192,7 +1303,7 @@ function wireInlineActions(w, opts = {}) {
       <div role="listitem"><div class="gE">h</div><div class="a3s" data-message-id="m1">body</div></div>
       <div role="toolbar">
         <button aria-label="Mark as read">Mark as read</button>
-        <button aria-label="Snooze">Snooze</button>
+        <button aria-label="Snooze until">Snooze</button>
         <button aria-label="Move to inbox">Move to inbox</button>
         <button aria-label="Mute">Mute</button>
       </div>
@@ -1207,7 +1318,15 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(w.__triageAction, "Mark as read", "u should mark read/unread");
 
   press(w, "h", { target: w.document.body });
-  assert.equal(w.__triageAction, "Snooze", "h should snooze instead of moving to the previous conversation");
+  assert.equal(w.__triageAction, "Snooze until", "h should open Gmail's native snooze/reminder UI");
+
+  w.__triageAction = null;
+  const oldSnooze = press(w, "b", { target: w.document.body });
+  assert.equal(oldSnooze.defaultPrevented, false, "b should no longer be a default snooze shortcut");
+  assert.equal(w.__triageAction, null, "b should not open snooze by default");
+
+  const snoozeCmd = w.OpenSuperhuman.commands.all().find((cmd) => cmd.id === "snooze");
+  assert.deepEqual(Array.from(snoozeCmd.keys), ["h"], "Snooze should default to h only");
 
   press(w, "E", { target: w.document.body, shiftKey: true });
   assert.equal(w.__triageAction, "Move to inbox", "Shift+E should mark not done");
@@ -1244,6 +1363,47 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(event.defaultPrevented, true, "u should be claimed in list view");
   assert.equal(w.__markedRead, true, "u should click Mark as read");
   assert.equal(checkbox.getAttribute("aria-checked"), "false", "u should not leave the list row selected");
+}
+
+// h on the list should target the current hover/cursor row, not a stale single
+// checked row. Otherwise Gmail's native Snooze menu opens for the wrong email.
+{
+  const w = load(`
+    <div role="main">
+      <div gh="tl"><table><tbody>
+        <tr class="zA" data-row="one">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">one</span></td>
+        </tr>
+        <tr class="zA" data-row="two">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">two</span></td>
+        </tr>
+      </tbody></table></div>
+      <div role="toolbar"><button aria-label="Snooze until">Snooze</button></div>
+    </div>`, "#inbox");
+  for (const row of rows(w)) {
+    row.querySelector('[role="checkbox"]').addEventListener("click", (event) => {
+      const cb = event.currentTarget;
+      cb.setAttribute("aria-checked", cb.getAttribute("aria-checked") === "true" ? "false" : "true");
+    });
+  }
+  const checkboxOne = rows(w)[0].querySelector('[role="checkbox"]');
+  const checkboxTwo = rows(w)[1].querySelector('[role="checkbox"]');
+  checkboxOne.setAttribute("aria-checked", "true");
+  rows(w)[1].dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
+  w.document.querySelector('[aria-label="Snooze until"]').addEventListener("click", () => {
+    w.__snoozedRows = rows(w)
+      .filter((row) => row.querySelector('[role="checkbox"]').getAttribute("aria-checked") === "true")
+      .map((row) => row.getAttribute("data-row"));
+  });
+
+  const event = press(w, "h", { target: w.document.body });
+
+  assert.equal(event.defaultPrevented, true, "h should be claimed in list view");
+  assert.deepEqual(w.__snoozedRows, ["two"], "h should retarget Snooze to the hovered row");
+  assert.equal(checkboxOne.getAttribute("aria-checked"), "false", "the stale selected row should be cleared before Snooze");
+  assert.equal(checkboxTwo.getAttribute("aria-checked"), "true", "the hovered row should be selected for Gmail's native Snooze menu");
 }
 
 // Cmd/Ctrl+U unsubscribes in thread view but remains available to compose fields.
