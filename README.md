@@ -2,6 +2,14 @@
 
 Superhuman-speed Gmail, without giving anyone your email.
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=oyiEgL7-68s">
+    <img src="https://img.youtube.com/vi/oyiEgL7-68s/maxresdefault.jpg" alt="Watch the Inbox Keys demo" width="640">
+  </a>
+  <br>
+  <a href="https://www.youtube.com/watch?v=oyiEgL7-68s"><b>▶ Watch the demo</b></a>
+</p>
+
 Inbox Keys is a **Cmd+K command palette**, **keyboard shortcuts**, **split-inbox tabs**, **fast account switching**, and a **calendar key** for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3).
 
 > **The privacy stance is the whole point.** No Gmail API. No server. No AI. No analytics. No build step. The only permission is `storage` (your settings, kept locally). Everything works by driving Gmail's own UI from a content script, so Inbox Keys never reads, sends, or stores your mail.
