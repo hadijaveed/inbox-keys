@@ -1,4 +1,4 @@
-# Mailpalette
+# Inbox Keys
 
 A Superhuman-style layer for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3). It adds a Cmd+K command palette, keyboard shortcuts and chords, split-inbox tabs, fast account switching, and a calendar key. No Gmail API, no server, no AI, no build step. The only permission requested is `storage` (plus `host_permissions` for `mail.google.com`). Everything works by driving Gmail's own UI from a content script.
 
@@ -19,7 +19,7 @@ Corollary for navigation: drive Gmail's hash router directly (`location.hash = "
 
 ## Architecture
 
-Chrome MV3. Content scripts share a single `window.CMDK` namespace and load in a fixed order (see `manifest.json` `content_scripts`):
+Chrome MV3. Content scripts share a single `window.InboxKeys` namespace and load in a fixed order (see `manifest.json` `content_scripts`):
 
 ```
 src/shared/hashutil.js    pure hash helpers (thread detection, parent hash). Unit-tested in Node.
@@ -46,7 +46,7 @@ src/background/           MV3 service worker (message relay).
 
 Where things live: keys and contexts are declared once in `keymap.js`; `commands.js` joins each catalog id to its `run()`. To add or change a binding you usually touch both. The palette is rebuilt every open so key overrides, tabs, and accounts stay current.
 
-Isolated world caveat: content scripts run in the ISOLATED world, so `window.CMDK` is invisible to page main-world JS. Browser-automation tools and the devtools console default to the main world and will see `CMDK` as undefined. DOM and `location.hash` inspection are world-independent, so verify live state through those. In Chrome devtools you can switch the console context to the extension content script to reach `CMDK`.
+Isolated world caveat: content scripts run in the ISOLATED world, so `window.InboxKeys` is invisible to page main-world JS. Browser-automation tools and the devtools console default to the main world and will see `InboxKeys` as undefined. DOM and `location.hash` inspection are world-independent, so verify live state through those. In Chrome devtools you can switch the console context to the extension content script to reach `InboxKeys`.
 
 ## The context classifier (gmail.getContext)
 
@@ -165,7 +165,7 @@ A periodic real-Gmail smoke test would catch Gmail-side DOM renames that the jsd
 
 ### 3. Internal rename (done)
 
-The product is Mailpalette everywhere: namespace `window.Mailpalette`, CSS prefix `mailpalette-` (`mailpalette-tab`, `mailpalette-overlay`, `mailpalette-cursor`), runtime message types `mailpalette:...`, synthetic-event tag `__mailpaletteSynthetic`, keymap global `Mailpalette_KEYMAP`. Done as one mechanical pass with `npm test` green. The user-facing `Cmd+K` / `⌘K` shortcut text is the actual keystroke, not a brand name.
+The product is Inbox Keys everywhere: namespace `window.InboxKeys`, CSS prefix `inboxkeys-` (`inboxkeys-tab`, `inboxkeys-overlay`, `inboxkeys-cursor`), runtime message types `inboxkeys:...`, synthetic-event tag `__inboxkeysSynthetic`, keymap global `InboxKeys_KEYMAP`. Done as one mechanical pass with `npm test` green. The user-facing `Cmd+K` / `⌘K` shortcut text is the actual keystroke, not a brand name.
 
 ## Conventions
 

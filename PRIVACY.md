@@ -1,19 +1,19 @@
-# Mailpalette Privacy Policy
+# Inbox Keys Privacy Policy
 
 Last updated: June 10, 2026
 
-Mailpalette is a Chrome extension that adds a command palette, keyboard shortcuts, split-inbox tabs, account switching, and a calendar key to Gmail.
+Inbox Keys is a Chrome extension that adds a command palette, keyboard shortcuts, split-inbox tabs, account switching, and a calendar key to Gmail.
 
-## What Mailpalette collects
+## What Inbox Keys collects
 
 Nothing.
 
-- No email content is read, stored, or transmitted. Mailpalette drives Gmail's existing interface in your browser; it does not use the Gmail API and has no access tokens.
+- No email content is read, stored, or transmitted. Inbox Keys drives Gmail's existing interface in your browser; it does not use the Gmail API and has no access tokens.
 - No analytics, telemetry, or tracking of any kind.
 - No remote servers. The extension makes no network requests of its own.
 - No accounts. There is nothing to sign up for.
 
-## What Mailpalette stores
+## What Inbox Keys stores
 
 Your settings only: shortcut remappings, split-inbox tab definitions, feature toggles, and the email-to-account-index mapping you configure for account switching. These are stored locally in your browser via the `chrome.storage` API and never leave your machine. Removing the extension removes them.
 

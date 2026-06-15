@@ -1,10 +1,10 @@
-# Mailpalette
+# Inbox Keys
 
 Superhuman-speed Gmail, without giving anyone your email.
 
-Mailpalette is a **Cmd+K command palette**, **keyboard shortcuts**, **split-inbox tabs**, **fast account switching**, and a **calendar key** for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3).
+Inbox Keys is a **Cmd+K command palette**, **keyboard shortcuts**, **split-inbox tabs**, **fast account switching**, and a **calendar key** for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3).
 
-> **The privacy stance is the whole point.** No Gmail API. No server. No AI. No analytics. No build step. The only permission is `storage` (your settings, kept locally). Everything works by driving Gmail's own UI from a content script, so Mailpalette never reads, sends, or stores your mail.
+> **The privacy stance is the whole point.** No Gmail API. No server. No AI. No analytics. No build step. The only permission is `storage` (your settings, kept locally). Everything works by driving Gmail's own UI from a content script, so Inbox Keys never reads, sends, or stores your mail.
 
 ## Features
 
@@ -35,7 +35,7 @@ Submission in progress. This README will link the listing once it is live.
 
 ## Why it does not break (much)
 
-Gmail's DOM is undocumented and shifts under every extension that touches it. Mailpalette is engineered around that:
+Gmail's DOM is undocumented and shifts under every extension that touches it. Inbox Keys is engineered around that:
 
 - **Hash routing first.** Navigation, tabs, and account switching ride Gmail's own URL router, the most stable hook Gmail exposes. Those features survive any redesign.
 - **One selector registry.** Every load-bearing DOM hook lives in `gmail.SEL`. The palette command **"Verify Gmail selectors (smoke check)"** probes the registry live and names exactly what moved if Gmail changes.
@@ -62,7 +62,7 @@ extension/
 
 Two principles explain most of the code:
 
-1. Gmail ignores synthetic keyboard events, so Mailpalette never fakes keystrokes. Every action drives a real Gmail control through a full pointer gesture (`gmail.realClick`).
+1. Gmail ignores synthetic keyboard events, so Inbox Keys never fakes keystrokes. Every action drives a real Gmail control through a full pointer gesture (`gmail.realClick`).
 2. A context classifier (`getContext()`) gates every shortcut (palette, modal, compose, thread, list, search), so keys only fire where they make sense and never steal your typing.
 
 ## Develop and test

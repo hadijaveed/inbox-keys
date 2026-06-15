@@ -7,11 +7,11 @@
 // message first, then replies once that message is expanded. "o" always toggles
 // the focused card or expansion control. All driven by real clicks — Gmail
 // ignores synthetic keys.
-window.Mailpalette = window.Mailpalette || {};
+window.InboxKeys = window.InboxKeys || {};
 
 (function () {
-  const { gmail } = Mailpalette;
-  const CURSOR_CLASS = "mailpalette-msg-cursor";
+  const { gmail } = InboxKeys;
+  const CURSOR_CLASS = "inboxkeys-msg-cursor";
   let cursorEl = null;
 
   function mainEl() {
@@ -212,5 +212,5 @@ window.Mailpalette = window.Mailpalette || {};
 
   window.addEventListener("hashchange", reset);
 
-  Mailpalette.threadnav = { move, moveArrow, toggleFocused, replyAllFocused, activateFocused, toggle, expandAllToggle, currentCard, reset };
+  InboxKeys.threadnav = { move, moveArrow, toggleFocused, replyAllFocused, activateFocused, toggle, expandAllToggle, currentCard, reset };
 })();

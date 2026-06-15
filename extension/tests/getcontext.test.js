@@ -27,7 +27,7 @@ function ctx({ hash = "#inbox", html = "", paletteOpen = false, focus = null }) 
     const el = w.document.querySelector(focus);
     if (el) el.focus();
   }
-  return w.Mailpalette.gmail.getContext();
+  return w.InboxKeys.gmail.getContext();
 }
 
 // ---- THE REGRESSION: a thread opened from the search box ----

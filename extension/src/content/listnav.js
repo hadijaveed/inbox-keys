@@ -6,11 +6,11 @@
 // the rows' real controls: the [role="checkbox"], the per-row hover buttons,
 // and the toolbar (which acts on the checked set). All clicks go through
 // gmail.realClick (full pointer+mouse gesture) so Gmail actually reacts.
-window.Mailpalette = window.Mailpalette || {};
+window.InboxKeys = window.InboxKeys || {};
 
 (function () {
-  const { gmail } = Mailpalette;
-  const CURSOR_CLASS = "mailpalette-cursor";
+  const { gmail } = InboxKeys;
+  const CURSOR_CLASS = "inboxkeys-cursor";
   let cursor = -1;
   let anchor = -1; // shift-select range anchor; -1 means no shift session active
   // "Act on the row I'm pointing at." A monotonic counter orders the two ways the
@@ -184,7 +184,13 @@ window.Mailpalette = window.Mailpalette || {};
     const row = cursorRow();
     if (!row) return;
     const target = row.querySelector('.xS, .bog, span[data-thread-id], [role="link"]') || row;
+    pendingReturnState = captureReturnState(location.hash || "#inbox");
     gmail.realClick(target);
+    setTimeout(() => {
+      if (pendingReturnState && !InboxKeys.hashutil.hashIsThread(location.hash || "")) {
+        pendingReturnState = null;
+      }
+    }, 1500);
   }
 
   // Gmail disables a toolbar control with aria-disabled="true" (e.g. Archive when
@@ -265,8 +271,8 @@ window.Mailpalette = window.Mailpalette || {};
   }
 
   function cannotArchive() {
-    if (Mailpalette.toast) {
-      Mailpalette.toast("Not in Inbox, nothing to archive", { kind: "warn" });
+    if (InboxKeys.toast) {
+      InboxKeys.toast("Not in Inbox, nothing to archive", { kind: "warn" });
     }
   }
 
@@ -489,7 +495,13 @@ window.Mailpalette = window.Mailpalette || {};
   // exact list. Any other navigation (different list, tab or account switch)
   // still starts the cursor over.
   let returnState = null; // { parent, cursor, scrollTop }
+  let pendingReturnState = null;
   let lastHash = location.hash;
+
+  function captureReturnState(parent) {
+    const sc = gmail.listScrollContainer();
+    return { parent, cursor, scrollTop: sc ? sc.scrollTop : 0 };
+  }
 
   function restoreReturn(want) {
     const seqAtRestore = evSeq;
@@ -523,18 +535,26 @@ window.Mailpalette = window.Mailpalette || {};
     const prev = lastHash;
     const now = location.hash;
     lastHash = now;
-    const { hashutil } = Mailpalette;
+    const { hashutil } = InboxKeys;
     if (hashutil.hashIsThread(now)) {
-      if (hashutil.parentHash(now) === prev) {
-        // Dove from a list into one of its threads: remember where we were.
-        const sc = gmail.listScrollContainer();
-        returnState = { parent: prev, cursor, scrollTop: sc ? sc.scrollTop : 0 };
+      const parent = hashutil.parentHash(now);
+      if (pendingReturnState && pendingReturnState.parent === parent) {
+        // The list was still intact when Enter clicked the row. Trust that
+        // snapshot; Gmail may have already rebuilt the DOM by this hashchange.
+        returnState = pendingReturnState;
+        pendingReturnState = null;
+      } else if (parent === prev) {
+        // Dove from a list into one of its threads by some path other than our
+        // Enter handler: remember where we were if the list is still readable.
+        returnState = captureReturnState(prev);
       } else if (!(returnState && hashutil.parentHash(now) === returnState.parent)) {
         // A thread of some OTHER list: the save no longer applies.
         returnState = null;
+        pendingReturnState = null;
       }
       return; // the list cursor is dormant inside a thread; nothing to reset
     }
+    pendingReturnState = null;
     if (returnState && now === returnState.parent) {
       const want = returnState;
       returnState = null;
@@ -547,5 +567,5 @@ window.Mailpalette = window.Mailpalette || {};
     reset();
   });
 
-  Mailpalette.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, snooze, withSelection, withTemporarySelection, reset, focusTop, focusBottom, syncEdgeAfterScroll, page };
+  InboxKeys.listnav = { move, extend, open, toggleSelect, selectedRows, clearSelection, archive, trash, toggleStar, markReadUnread, snooze, withSelection, withTemporarySelection, reset, focusTop, focusBottom, syncEdgeAfterScroll, page };
 })();

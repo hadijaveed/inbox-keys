@@ -1,7 +1,7 @@
 // Bootstrap: load settings, then wire up the palette, hotkeys, accounts, and
 // the split-inbox tab bar once Gmail's app is ready.
 (async function () {
-  const { storage, hotkeys, accounts, palette, tabs } = Mailpalette;
+  const { storage, hotkeys, accounts, palette, tabs } = InboxKeys;
 
   await storage.load();
 
@@ -26,9 +26,9 @@
 
   // Let the popup/background drive the content script via messages.
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg && msg.type === "mailpalette:open-palette") palette.show();
-    if (msg && msg.type === "mailpalette:open-tabs-config") tabs.openConfig();
+    if (msg && msg.type === "inboxkeys:open-palette") palette.show();
+    if (msg && msg.type === "inboxkeys:open-tabs-config") tabs.openConfig();
   });
 
-  console.log("[Mailpalette] ready on", location.host, "build: mailpalette-audit-hardening");
+  console.log("[InboxKeys] ready on", location.host, "build: inboxkeys-audit-hardening");
 })();

@@ -1,9 +1,9 @@
 // The Cmd+K command palette: an injected overlay with fuzzy search over the
 // command registry.
-window.Mailpalette = window.Mailpalette || {};
+window.InboxKeys = window.InboxKeys || {};
 
 (function () {
-  const { commands, storage } = Mailpalette;
+  const { commands, storage } = InboxKeys;
 
   let root, input, list, results, open = false;
   let items = [];
@@ -32,8 +32,8 @@ window.Mailpalette = window.Mailpalette || {};
   }
 
   function keyLabel(binding) {
-    if (window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.displayBinding === "function") {
-      return Mailpalette_KEYMAP.displayBinding(binding);
+    if (window.InboxKeys_KEYMAP && typeof InboxKeys_KEYMAP.displayBinding === "function") {
+      return InboxKeys_KEYMAP.displayBinding(binding);
     }
     return String(binding || "");
   }
@@ -41,24 +41,24 @@ window.Mailpalette = window.Mailpalette || {};
   function build() {
     if (root) return;
     root = document.createElement("div");
-    root.className = "mailpalette-overlay";
+    root.className = "inboxkeys-overlay";
     root.innerHTML = `
-      <div class="mailpalette-modal" role="dialog" aria-label="Command palette">
-        <div class="mailpalette-input-row">
-          <span class="mailpalette-prompt"></span>
-          <input class="mailpalette-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" />
+      <div class="inboxkeys-modal" role="dialog" aria-label="Command palette">
+        <div class="inboxkeys-input-row">
+          <span class="inboxkeys-prompt"></span>
+          <input class="inboxkeys-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" />
         </div>
-        <div class="mailpalette-results"></div>
-        <div class="mailpalette-footer">
+        <div class="inboxkeys-results"></div>
+        <div class="inboxkeys-footer">
           <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
           <span><kbd>↵</kbd> run</span>
           <span><kbd>esc</kbd> close</span>
         </div>
       </div>`;
     document.documentElement.appendChild(root);
-    root.querySelector(".mailpalette-prompt").textContent = keyLabel("Mod+K");
-    input = root.querySelector(".mailpalette-input");
-    results = root.querySelector(".mailpalette-results");
+    root.querySelector(".inboxkeys-prompt").textContent = keyLabel("Mod+K");
+    input = root.querySelector(".inboxkeys-input");
+    results = root.querySelector(".inboxkeys-results");
 
     root.addEventListener("mousedown", (e) => {
       if (e.target === root) hide();
@@ -112,25 +112,25 @@ window.Mailpalette = window.Mailpalette || {};
 
     results.innerHTML = "";
     if (!items.length) {
-      results.innerHTML = `<div class="mailpalette-empty">No matching commands</div>`;
+      results.innerHTML = `<div class="inboxkeys-empty">No matching commands</div>`;
       return;
     }
     let lastGroup = null;
     items.forEach((cmd, i) => {
       if (cmd.group && cmd.group !== lastGroup) {
         const h = document.createElement("div");
-        h.className = "mailpalette-group";
+        h.className = "inboxkeys-group";
         h.textContent = cmd.group;
         results.appendChild(h);
         lastGroup = cmd.group;
       }
       const row = document.createElement("div");
-      row.className = "mailpalette-row" + (i === active ? " mailpalette-row--active" : "");
+      row.className = "inboxkeys-row" + (i === active ? " inboxkeys-row--active" : "");
       row.dataset.i = i;
       const keys = (cmd.keys || []).map((k) => `<kbd>${escapeHtml(keyLabel(k))}</kbd>`).join("");
       row.innerHTML = `
-        <span class="mailpalette-row-title">${escapeHtml(title(cmd))}</span>
-        <span class="mailpalette-row-keys">${cmd.hint ? `<span class="mailpalette-hint">${escapeHtml(cmd.hint)}</span>` : ""}${keys}</span>`;
+        <span class="inboxkeys-row-title">${escapeHtml(title(cmd))}</span>
+        <span class="inboxkeys-row-keys">${cmd.hint ? `<span class="inboxkeys-hint">${escapeHtml(cmd.hint)}</span>` : ""}${keys}</span>`;
       row.addEventListener("mouseenter", () => {
         if (Date.now() - kbNavAt < 250) return; // keyboard nav wins briefly
         active = i;
@@ -143,10 +143,10 @@ window.Mailpalette = window.Mailpalette || {};
   }
 
   function highlight() {
-    results.querySelectorAll(".mailpalette-row").forEach((r) => {
-      r.classList.toggle("mailpalette-row--active", parseInt(r.dataset.i, 10) === active);
+    results.querySelectorAll(".inboxkeys-row").forEach((r) => {
+      r.classList.toggle("inboxkeys-row--active", parseInt(r.dataset.i, 10) === active);
     });
-    const el = results.querySelector(".mailpalette-row--active");
+    const el = results.querySelector(".inboxkeys-row--active");
     if (el) el.scrollIntoView({ block: "nearest" });
   }
 
@@ -159,8 +159,8 @@ window.Mailpalette = window.Mailpalette || {};
       try {
         cmd.run();
       } catch (err) {
-        console.error("[Mailpalette] command failed", cmd.id, err);
-        Mailpalette.toast("Command failed: " + (cmd.id || "unknown"), { kind: "warn" });
+        console.error("[InboxKeys] command failed", cmd.id, err);
+        InboxKeys.toast("Command failed: " + (cmd.id || "unknown"), { kind: "warn" });
       }
     }, 30);
   }
@@ -168,7 +168,7 @@ window.Mailpalette = window.Mailpalette || {};
   function show() {
     build();
     open = true;
-    root.classList.add("mailpalette-overlay--open");
+    root.classList.add("inboxkeys-overlay--open");
     input.value = "";
     render();
     setTimeout(() => input.focus(), 0);
@@ -177,7 +177,7 @@ window.Mailpalette = window.Mailpalette || {};
   function hide() {
     if (!root) return;
     open = false;
-    root.classList.remove("mailpalette-overlay--open");
+    root.classList.remove("inboxkeys-overlay--open");
     input.blur();
   }
 
@@ -189,5 +189,5 @@ window.Mailpalette = window.Mailpalette || {};
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  Mailpalette.palette = { show, hide, toggle, isOpen: () => open, move, confirm };
+  InboxKeys.palette = { show, hide, toggle, isOpen: () => open, move, confirm };
 })();

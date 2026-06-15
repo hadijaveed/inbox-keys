@@ -9,10 +9,10 @@
 // A gear at the end opens an in-Gmail config modal to add/rename/remove tabs,
 // with one-click suggestions. Everything persists in chrome.storage and the bar
 // re-injects itself as Gmail re-renders (MutationObserver).
-window.Mailpalette = window.Mailpalette || {};
+window.InboxKeys = window.InboxKeys || {};
 
 (function () {
-  const { storage, gmail } = Mailpalette;
+  const { storage, gmail } = InboxKeys;
 
   let bar = null;
   let observer = null;
@@ -172,11 +172,11 @@ window.Mailpalette = window.Mailpalette || {};
 
   function build() {
     const el = document.createElement("div");
-    el.id = "mailpalette-tab-bar";
-    el.className = "mailpalette-tabbar";
+    el.id = "inboxkeys-tab-bar";
+    el.className = "inboxkeys-tabbar";
     tabs().forEach((tab) => {
       const b = document.createElement("button");
-      b.className = "mailpalette-tab";
+      b.className = "inboxkeys-tab";
       b.dataset.id = tab.id;
       b.textContent = tab.name;
       b.title = tab.type === "inbox" ? "Inbox" : effectiveQuery(tab);
@@ -184,9 +184,9 @@ window.Mailpalette = window.Mailpalette || {};
       el.appendChild(b);
     });
     const gear = document.createElement("button");
-    gear.className = "mailpalette-tab-gear";
-    gear.title = "Configure Mailpalette Tabs";
-    gear.setAttribute("aria-label", "Configure Mailpalette Tabs");
+    gear.className = "inboxkeys-tab-gear";
+    gear.title = "Configure InboxKeys Tabs";
+    gear.setAttribute("aria-label", "Configure InboxKeys Tabs");
     gear.innerHTML = GEAR_SVG;
     gear.addEventListener("click", openConfig);
     el.appendChild(gear);
@@ -200,8 +200,8 @@ window.Mailpalette = window.Mailpalette || {};
   function updateActive() {
     if (!bar) return;
     const list = tabs();
-    bar.querySelectorAll(".mailpalette-tab").forEach((b, i) => {
-      b.classList.toggle("mailpalette-tab--active", list[i] ? isActive(list[i]) : false);
+    bar.querySelectorAll(".inboxkeys-tab").forEach((b, i) => {
+      b.classList.toggle("inboxkeys-tab--active", list[i] ? isActive(list[i]) : false);
     });
   }
 
@@ -230,20 +230,20 @@ window.Mailpalette = window.Mailpalette || {};
   let shortcutRecording = null;
 
   function keymapCommands() {
-    return (window.Mailpalette_KEYMAP && Mailpalette_KEYMAP.commands) || [];
+    return (window.InboxKeys_KEYMAP && InboxKeys_KEYMAP.commands) || [];
   }
 
   function shortcutKeysFor(cmd, overrides) {
-    if (window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.keysFor === "function") {
-      return Mailpalette_KEYMAP.keysFor(cmd.id, overrides || {}) || [];
+    if (window.InboxKeys_KEYMAP && typeof InboxKeys_KEYMAP.keysFor === "function") {
+      return InboxKeys_KEYMAP.keysFor(cmd.id, overrides || {}) || [];
     }
     if (overrides && Object.prototype.hasOwnProperty.call(overrides, cmd.id)) return overrides[cmd.id] || [];
     return cmd.defaultKeys || [];
   }
 
   function shortcutChips(binding) {
-    const display = window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.displayBinding === "function"
-      ? Mailpalette_KEYMAP.displayBinding(binding)
+    const display = window.InboxKeys_KEYMAP && typeof InboxKeys_KEYMAP.displayBinding === "function"
+      ? InboxKeys_KEYMAP.displayBinding(binding)
       : String(binding || "");
     return display
       .trim()
@@ -271,8 +271,8 @@ window.Mailpalette = window.Mailpalette || {};
   }
 
   function contextsOverlap(a, b) {
-    const left = a && a.length ? a : Mailpalette_KEYMAP.DEFAULT_CONTEXTS;
-    const right = b && b.length ? b : Mailpalette_KEYMAP.DEFAULT_CONTEXTS;
+    const left = a && a.length ? a : InboxKeys_KEYMAP.DEFAULT_CONTEXTS;
+    const right = b && b.length ? b : InboxKeys_KEYMAP.DEFAULT_CONTEXTS;
     if (left.includes("*") || right.includes("*")) return true;
     return left.some((ctx) => right.includes(ctx));
   }
@@ -299,82 +299,82 @@ window.Mailpalette = window.Mailpalette || {};
     let activePane = initialPane === "shortcuts" ? "shortcuts" : "tabs";
 
     cfg = document.createElement("div");
-    cfg.className = "mailpalette-overlay mailpalette-overlay--open mailpalette-cfg-overlay";
+    cfg.className = "inboxkeys-overlay inboxkeys-overlay--open inboxkeys-cfg-overlay";
     cfg.innerHTML = `
-      <div class="mailpalette-modal mailpalette-cfg" role="dialog" aria-label="Configure tabs">
-        <div class="mailpalette-cfg-head">
+      <div class="inboxkeys-modal inboxkeys-cfg" role="dialog" aria-label="Configure tabs">
+        <div class="inboxkeys-cfg-head">
           <div>
-            <div class="mailpalette-cfg-title">Mailpalette settings</div>
-            <div class="mailpalette-cfg-sub">Tune your split inbox and keyboard shortcuts without leaving Gmail. Search shortcuts by action, group, or key.</div>
+            <div class="inboxkeys-cfg-title">InboxKeys settings</div>
+            <div class="inboxkeys-cfg-sub">Tune your split inbox and keyboard shortcuts without leaving Gmail. Search shortcuts by action, group, or key.</div>
           </div>
-          <button class="mailpalette-cfg-x" aria-label="Close">esc</button>
+          <button class="inboxkeys-cfg-x" aria-label="Close">esc</button>
         </div>
-        <div class="mailpalette-cfg-tabs" role="tablist" aria-label="Mailpalette settings sections">
-          <button class="mailpalette-cfg-tab" type="button" role="tab" data-settings-tab="tabs">Tabs</button>
-          <button class="mailpalette-cfg-tab" type="button" role="tab" data-settings-tab="shortcuts">Keyboard shortcuts</button>
+        <div class="inboxkeys-cfg-tabs" role="tablist" aria-label="InboxKeys settings sections">
+          <button class="inboxkeys-cfg-tab" type="button" role="tab" data-settings-tab="tabs">Tabs</button>
+          <button class="inboxkeys-cfg-tab" type="button" role="tab" data-settings-tab="shortcuts">Keyboard shortcuts</button>
         </div>
-        <div class="mailpalette-cfg-body">
-          <section class="mailpalette-cfg-panel mailpalette-cfg-panel--tabs" data-settings-panel="tabs">
-            <div class="mailpalette-cfg-section-head">
+        <div class="inboxkeys-cfg-body">
+          <section class="inboxkeys-cfg-panel inboxkeys-cfg-panel--tabs" data-settings-panel="tabs">
+            <div class="inboxkeys-cfg-section-head">
               <div>
-                <div class="mailpalette-cfg-section-title">Split inbox tabs</div>
-                <div class="mailpalette-cfg-section-sub">Keep 4-6 tabs for daily triage. Use Gmail operators like <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>.</div>
+                <div class="inboxkeys-cfg-section-title">Split inbox tabs</div>
+                <div class="inboxkeys-cfg-section-sub">Keep 4-6 tabs for daily triage. Use Gmail operators like <code>label:</code>, <code>is:</code>, <code>from:</code>, <code>has:</code>, <code>category:</code>.</div>
               </div>
             </div>
-            <div class="mailpalette-cfg-list"></div>
-            <div class="mailpalette-cfg-actions">
-              <button class="mailpalette-cfg-add">+ Add tab</button>
-              <button class="mailpalette-cfg-reset">Reset defaults</button>
+            <div class="inboxkeys-cfg-list"></div>
+            <div class="inboxkeys-cfg-actions">
+              <button class="inboxkeys-cfg-add">+ Add tab</button>
+              <button class="inboxkeys-cfg-reset">Reset defaults</button>
             </div>
-            <div class="mailpalette-cfg-suggest-label">Presets</div>
-            <div class="mailpalette-cfg-suggest"></div>
+            <div class="inboxkeys-cfg-suggest-label">Presets</div>
+            <div class="inboxkeys-cfg-suggest"></div>
           </section>
-          <section class="mailpalette-cfg-panel mailpalette-cfg-panel--keys" data-settings-panel="shortcuts">
-            <div class="mailpalette-cfg-section-head mailpalette-shortcuts-head">
+          <section class="inboxkeys-cfg-panel inboxkeys-cfg-panel--keys" data-settings-panel="shortcuts">
+            <div class="inboxkeys-cfg-section-head inboxkeys-shortcuts-head">
               <div>
-                <div class="mailpalette-cfg-section-title">Keyboard shortcuts</div>
-                <div class="mailpalette-cfg-section-sub">Click an editable shortcut, then press the new key or combo. Shift, Ctrl, Alt, and Cmd combos are supported. Built-in shortcuts are read-only.</div>
+                <div class="inboxkeys-cfg-section-title">Keyboard shortcuts</div>
+                <div class="inboxkeys-cfg-section-sub">Click an editable shortcut, then press the new key or combo. Shift, Ctrl, Alt, and Cmd combos are supported. Built-in shortcuts are read-only.</div>
               </div>
-              <button class="mailpalette-shortcut-reset-all">Reset shortcuts</button>
+              <button class="inboxkeys-shortcut-reset-all">Reset shortcuts</button>
             </div>
-            <div class="mailpalette-shortcut-tools">
-              <div class="mailpalette-shortcut-search-wrap">
-                <span class="mailpalette-shortcut-search-icon" aria-hidden="true">⌕</span>
-                <input class="mailpalette-shortcut-search" type="search" placeholder="Search shortcuts, actions, or keys..." autocomplete="off" />
+            <div class="inboxkeys-shortcut-tools">
+              <div class="inboxkeys-shortcut-search-wrap">
+                <span class="inboxkeys-shortcut-search-icon" aria-hidden="true">⌕</span>
+                <input class="inboxkeys-shortcut-search" type="search" placeholder="Search shortcuts, actions, or keys..." autocomplete="off" />
               </div>
-              <div class="mailpalette-shortcut-count"></div>
+              <div class="inboxkeys-shortcut-count"></div>
             </div>
-            <div class="mailpalette-shortcut-list"></div>
+            <div class="inboxkeys-shortcut-list"></div>
           </section>
         </div>
-        <div class="mailpalette-cfg-foot">
-          <span class="mailpalette-cfg-hint"></span>
+        <div class="inboxkeys-cfg-foot">
+          <span class="inboxkeys-cfg-hint"></span>
           <span>
-            <button class="mailpalette-btn mailpalette-btn--ghost mailpalette-cfg-cancel">Cancel</button>
-            <button class="mailpalette-btn mailpalette-cfg-save">Save</button>
+            <button class="inboxkeys-btn inboxkeys-btn--ghost inboxkeys-cfg-cancel">Cancel</button>
+            <button class="inboxkeys-btn inboxkeys-cfg-save">Save</button>
           </span>
         </div>
       </div>`;
     document.documentElement.appendChild(cfg);
 
-    const list = cfg.querySelector(".mailpalette-cfg-list");
-    const suggestWrap = cfg.querySelector(".mailpalette-cfg-suggest");
-    const shortcutList = cfg.querySelector(".mailpalette-shortcut-list");
-    const shortcutSearch = cfg.querySelector(".mailpalette-shortcut-search");
-    const shortcutCount = cfg.querySelector(".mailpalette-shortcut-count");
-    const hint = cfg.querySelector(".mailpalette-cfg-hint");
+    const list = cfg.querySelector(".inboxkeys-cfg-list");
+    const suggestWrap = cfg.querySelector(".inboxkeys-cfg-suggest");
+    const shortcutList = cfg.querySelector(".inboxkeys-shortcut-list");
+    const shortcutSearch = cfg.querySelector(".inboxkeys-shortcut-search");
+    const shortcutCount = cfg.querySelector(".inboxkeys-shortcut-count");
+    const hint = cfg.querySelector(".inboxkeys-cfg-hint");
 
     function setSettingsPane(pane) {
       activePane = pane === "shortcuts" ? "shortcuts" : "tabs";
       cfg.querySelectorAll("[data-settings-tab]").forEach((tab) => {
         const selected = tab.dataset.settingsTab === activePane;
-        tab.classList.toggle("mailpalette-cfg-tab--active", selected);
+        tab.classList.toggle("inboxkeys-cfg-tab--active", selected);
         tab.setAttribute("aria-selected", selected ? "true" : "false");
         tab.tabIndex = selected ? 0 : -1;
       });
       cfg.querySelectorAll("[data-settings-panel]").forEach((panel) => {
         const selected = panel.dataset.settingsPanel === activePane;
-        panel.classList.toggle("mailpalette-cfg-panel--active", selected);
+        panel.classList.toggle("inboxkeys-cfg-panel--active", selected);
         panel.hidden = !selected;
       });
       hint.innerHTML =
@@ -385,16 +385,16 @@ window.Mailpalette = window.Mailpalette || {};
 
     function rowFor(tab, i) {
       const row = document.createElement("div");
-      row.className = "mailpalette-cfg-row";
+      row.className = "inboxkeys-cfg-row";
       const isInbox = tab.type === "inbox";
       row.innerHTML = `
-        <input class="mailpalette-cfg-name" value="${escapeAttr(tab.name)}" placeholder="Tab name" />
-        <input class="mailpalette-cfg-query" value="${escapeAttr(tab.query || "")}" placeholder="${isInbox ? "Inbox (the default view)" : "in:inbox is:unread, label:Clients, from:boss@…"}" ${isInbox ? "disabled" : ""} />
-        <button class="mailpalette-cfg-del" title="Remove" ${isInbox ? "disabled" : ""}>✕</button>`;
-      row.querySelector(".mailpalette-cfg-name").addEventListener("input", (e) => (working[i].name = e.target.value));
+        <input class="inboxkeys-cfg-name" value="${escapeAttr(tab.name)}" placeholder="Tab name" />
+        <input class="inboxkeys-cfg-query" value="${escapeAttr(tab.query || "")}" placeholder="${isInbox ? "Inbox (the default view)" : "in:inbox is:unread, label:Clients, from:boss@…"}" ${isInbox ? "disabled" : ""} />
+        <button class="inboxkeys-cfg-del" title="Remove" ${isInbox ? "disabled" : ""}>✕</button>`;
+      row.querySelector(".inboxkeys-cfg-name").addEventListener("input", (e) => (working[i].name = e.target.value));
       if (!isInbox) {
-        row.querySelector(".mailpalette-cfg-query").addEventListener("input", (e) => (working[i].query = e.target.value));
-        row.querySelector(".mailpalette-cfg-del").addEventListener("click", () => {
+        row.querySelector(".inboxkeys-cfg-query").addEventListener("input", (e) => (working[i].query = e.target.value));
+        row.querySelector(".inboxkeys-cfg-del").addEventListener("click", () => {
           working.splice(i, 1);
           renderRows();
         });
@@ -419,8 +419,8 @@ window.Mailpalette = window.Mailpalette || {};
       let shown = 0;
       keymapCommands().forEach((cmd) => {
         const keys = effectiveShortcutKeys(cmd);
-        const displayKeys = window.Mailpalette_KEYMAP && typeof Mailpalette_KEYMAP.displayBinding === "function"
-          ? keys.map((key) => Mailpalette_KEYMAP.displayBinding(key))
+        const displayKeys = window.InboxKeys_KEYMAP && typeof InboxKeys_KEYMAP.displayBinding === "function"
+          ? keys.map((key) => InboxKeys_KEYMAP.displayBinding(key))
           : keys;
         const hay = `${cmd.title} ${cmd.group || ""} ${keys.join(" ")} ${displayKeys.join(" ")} ${(cmd.contexts || []).join(" ")}`.toLowerCase();
         if (filter && !hay.includes(filter)) return;
@@ -434,7 +434,7 @@ window.Mailpalette = window.Mailpalette || {};
       shortcutList.innerHTML = "";
       groups.forEach((group) => {
         const head = document.createElement("div");
-        head.className = "mailpalette-shortcut-group";
+        head.className = "inboxkeys-shortcut-group";
         head.textContent = group;
         shortcutList.appendChild(head);
         byGroup.get(group).forEach((cmd) => {
@@ -444,7 +444,7 @@ window.Mailpalette = window.Mailpalette || {};
       });
       if (!shown) {
         const empty = document.createElement("div");
-        empty.className = "mailpalette-shortcut-empty";
+        empty.className = "inboxkeys-shortcut-empty";
         empty.textContent = "No shortcuts match your search.";
         shortcutList.appendChild(empty);
       }
@@ -453,16 +453,16 @@ window.Mailpalette = window.Mailpalette || {};
 
     function shortcutRow(cmd) {
       const row = document.createElement("div");
-      row.className = "mailpalette-shortcut-row" + (cmd.fixed ? " mailpalette-shortcut-row--fixed" : "");
+      row.className = "inboxkeys-shortcut-row" + (cmd.fixed ? " inboxkeys-shortcut-row--fixed" : "");
       row.dataset.id = cmd.id;
 
       const meta = document.createElement("div");
-      meta.className = "mailpalette-shortcut-meta";
+      meta.className = "inboxkeys-shortcut-meta";
       const title = document.createElement("div");
-      title.className = "mailpalette-shortcut-title";
+      title.className = "inboxkeys-shortcut-title";
       title.textContent = cmd.title;
       const context = document.createElement("div");
-      context.className = "mailpalette-shortcut-context";
+      context.className = "inboxkeys-shortcut-context";
       context.textContent = (cmd.contexts || []).join(", ") || "all contexts";
       meta.appendChild(title);
       meta.appendChild(context);
@@ -470,12 +470,12 @@ window.Mailpalette = window.Mailpalette || {};
 
       const keys = document.createElement("button");
       keys.type = "button";
-      keys.className = "mailpalette-shortcut-keys";
+      keys.className = "inboxkeys-shortcut-keys";
       keys.disabled = !!cmd.fixed;
       const effective = effectiveShortcutKeys(cmd);
       keys.innerHTML = effective.length
-        ? effective.map(shortcutChips).join('<span class="mailpalette-shortcut-or">or</span>')
-        : '<span class="mailpalette-shortcut-none">not set</span>';
+        ? effective.map(shortcutChips).join('<span class="inboxkeys-shortcut-or">or</span>')
+        : '<span class="inboxkeys-shortcut-none">not set</span>';
       if (!cmd.fixed) {
         keys.title = "Record a new shortcut";
         keys.addEventListener("click", () => startShortcutRecording(cmd, row, keys));
@@ -486,7 +486,7 @@ window.Mailpalette = window.Mailpalette || {};
 
       const reset = document.createElement("button");
       reset.type = "button";
-      reset.className = "mailpalette-shortcut-reset";
+      reset.className = "inboxkeys-shortcut-reset";
       reset.textContent = "Reset";
       reset.disabled = cmd.fixed || !Array.isArray(workingKeyOverrides[cmd.id]);
       reset.addEventListener("click", () => {
@@ -501,15 +501,15 @@ window.Mailpalette = window.Mailpalette || {};
     function startShortcutRecording(cmd, row, keys) {
       cancelShortcutRecording(false);
       shortcutRecording = { cmd, row, keys, parts: [], chordTimer: null, cancel: cancelShortcutRecording };
-      row.classList.add("mailpalette-shortcut-row--recording");
-      keys.innerHTML = '<span class="mailpalette-shortcut-listening">Press key or combo...</span>';
+      row.classList.add("inboxkeys-shortcut-row--recording");
+      keys.innerHTML = '<span class="inboxkeys-shortcut-listening">Press key or combo...</span>';
       document.addEventListener("keydown", onShortcutRecordKey, true);
     }
 
     function renderShortcutRecording() {
       if (!shortcutRecording) return;
       const chips = shortcutRecording.parts.map(shortcutChips).join("");
-      shortcutRecording.keys.innerHTML = chips || '<span class="mailpalette-shortcut-listening">Press key or combo...</span>';
+      shortcutRecording.keys.innerHTML = chips || '<span class="inboxkeys-shortcut-listening">Press key or combo...</span>';
     }
 
     function cancelShortcutRecording(rerender = true) {
@@ -566,7 +566,7 @@ window.Mailpalette = window.Mailpalette || {};
       const collision = findShortcutCollision(binding, id, workingKeyOverrides);
       if (collision) {
         if (collision.fixed) {
-          Mailpalette.toast(`Shortcut reserved for ${collision.title}`, "warn");
+          InboxKeys.toast(`Shortcut reserved for ${collision.title}`, "warn");
           cancelShortcutRecording();
           return;
         }
@@ -583,7 +583,7 @@ window.Mailpalette = window.Mailpalette || {};
       const existing = working.findIndex((tab) => tab.type === "search" && norm(tab.query) === norm(query));
       if (existing >= 0) {
         focusRow(existing);
-        Mailpalette.toast("Tab already added");
+        InboxKeys.toast("Tab already added");
         return;
       }
       working.push({ id: "t" + Date.now() + Math.floor(Math.random() * 1000), name: name || "New tab", type: "search", query: query || "" });
@@ -594,24 +594,24 @@ window.Mailpalette = window.Mailpalette || {};
       suggestWrap.innerHTML = "";
       SUGGESTION_GROUPS.forEach((group) => {
         const box = document.createElement("div");
-        box.className = "mailpalette-cfg-suggest-group";
+        box.className = "inboxkeys-cfg-suggest-group";
         const title = document.createElement("div");
-        title.className = "mailpalette-cfg-suggest-title";
+        title.className = "inboxkeys-cfg-suggest-title";
         title.textContent = group.title;
         box.appendChild(title);
         const chips = document.createElement("div");
-        chips.className = "mailpalette-cfg-suggest-chips";
+        chips.className = "inboxkeys-cfg-suggest-chips";
         group.items.forEach((s) => {
           const chip = document.createElement("button");
           const exists = working.some((tab) => tab.type === "search" && norm(tab.query) === norm(s.query));
-          chip.className = "mailpalette-cfg-chip" + (exists ? " mailpalette-cfg-chip--added" : "");
+          chip.className = "inboxkeys-cfg-chip" + (exists ? " inboxkeys-cfg-chip--added" : "");
           chip.title = s.query;
           chip.disabled = exists;
           const main = document.createElement("span");
-          main.className = "mailpalette-cfg-chip-main";
+          main.className = "inboxkeys-cfg-chip-main";
           main.textContent = s.name;
           const note = document.createElement("span");
-          note.className = "mailpalette-cfg-chip-note";
+          note.className = "inboxkeys-cfg-chip-note";
           note.textContent = exists ? "Added" : s.note;
           chip.appendChild(main);
           chip.appendChild(note);
@@ -624,13 +624,13 @@ window.Mailpalette = window.Mailpalette || {};
     }
 
     function focusRow(i) {
-      const rows = Array.from(list.querySelectorAll(".mailpalette-cfg-row"));
+      const rows = Array.from(list.querySelectorAll(".inboxkeys-cfg-row"));
       const row = rows[i];
       if (!row) return;
-      row.classList.add("mailpalette-cfg-row--pulse");
-      const input = row.querySelector(".mailpalette-cfg-name");
+      row.classList.add("inboxkeys-cfg-row--pulse");
+      const input = row.querySelector(".inboxkeys-cfg-name");
       if (input) input.focus();
-      setTimeout(() => row.classList.remove("mailpalette-cfg-row--pulse"), 700);
+      setTimeout(() => row.classList.remove("inboxkeys-cfg-row--pulse"), 700);
     }
 
     function norm(value) {
@@ -644,30 +644,30 @@ window.Mailpalette = window.Mailpalette || {};
     cfg.querySelectorAll("[data-settings-tab]").forEach((tab) => {
       tab.addEventListener("click", () => setSettingsPane(tab.dataset.settingsTab));
     });
-    cfg.querySelector(".mailpalette-cfg-add").addEventListener("click", () => addTab("", ""));
-    cfg.querySelector(".mailpalette-cfg-reset").addEventListener("click", () => {
-      working.splice(0, working.length, ...Mailpalette.DEFAULTS.tabs.map((t) => ({ ...t })));
+    cfg.querySelector(".inboxkeys-cfg-add").addEventListener("click", () => addTab("", ""));
+    cfg.querySelector(".inboxkeys-cfg-reset").addEventListener("click", () => {
+      working.splice(0, working.length, ...InboxKeys.DEFAULTS.tabs.map((t) => ({ ...t })));
       renderRows();
     });
-    cfg.querySelector(".mailpalette-shortcut-search").addEventListener("input", (e) => {
+    cfg.querySelector(".inboxkeys-shortcut-search").addEventListener("input", (e) => {
       shortcutFilter = e.target.value || "";
       renderShortcuts();
     });
-    cfg.querySelector(".mailpalette-shortcut-reset-all").addEventListener("click", () => {
+    cfg.querySelector(".inboxkeys-shortcut-reset-all").addEventListener("click", () => {
       workingKeyOverrides = {};
       cancelShortcutRecording(false);
       renderShortcuts();
     });
-    cfg.querySelector(".mailpalette-cfg-cancel").addEventListener("click", closeConfig);
-    cfg.querySelector(".mailpalette-cfg-x").addEventListener("click", closeConfig);
-    cfg.querySelector(".mailpalette-cfg-save").addEventListener("click", async () => {
+    cfg.querySelector(".inboxkeys-cfg-cancel").addEventListener("click", closeConfig);
+    cfg.querySelector(".inboxkeys-cfg-x").addEventListener("click", closeConfig);
+    cfg.querySelector(".inboxkeys-cfg-save").addEventListener("click", async () => {
       const cleaned = working
         .map((t) => ({ ...t, name: (t.name || "").trim() }))
         .filter((t) => t.type === "inbox" || (t.name && (t.query || "").trim()));
       await storage.set({ tabs: cleaned, keyOverrides: workingKeyOverrides });
       closeConfig();
       rebuild();
-      Mailpalette.toast("Settings saved");
+      InboxKeys.toast("Settings saved");
     });
     cfg.addEventListener("mousedown", (e) => {
       if (e.target === cfg) closeConfig();
@@ -725,5 +725,5 @@ window.Mailpalette = window.Mailpalette || {};
     });
   }
 
-  Mailpalette.tabs = { init, openConfig, navigate, list: tabs, next, prev };
+  InboxKeys.tabs = { init, openConfig, navigate, list: tabs, next, prev };
 })();

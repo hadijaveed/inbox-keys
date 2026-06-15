@@ -1,0 +1,619 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Inbox Keys — intro</title>
+
+<!-- render-mode gating: set ?render=1 in URL to hide UI chrome for capture -->
+<style>
+  html, body { margin: 0; padding: 0; background: #000; overflow: hidden; font-family: Inter, system-ui, sans-serif; }
+  #root { position: absolute; top: 0; right: 0; bottom: 0; left: 0; inset: 0; }
+  html.render-mode .audio-hint { display: none !important; }
+  .audio-hint {
+    position: fixed; top: 16px; right: 16px; z-index: 100;
+    padding: 8px 14px; border-radius: 999px;
+    background: rgba(0,0,0,0.6); color: #fff; font-size: 13px;
+    pointer-events: none;
+  }
+</style>
+<script>
+  if (/[?&]render=1\b/.test(location.search)) {
+    document.documentElement.classList.add('render-mode');
+  }
+</script>
+
+<!-- React + Babel standalone -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+</head>
+<body>
+<div id="root"></div>
+<div class="audio-hint">Click anywhere to start music</div>
+
+<script type="text/babel">
+
+const DURATION = 36; // seconds
+const PALETTE = {
+  bg:     '#0B0B0E',
+  ink:    '#E8E8EA',
+  accent: '#6366F1',
+  muted:  '#6B6B78',
+  card:   '#141419',
+  cardHi: '#1B1B22',
+  line:   '#26262E',
+};
+const TYPE = {
+  display: '"Inter", system-ui, sans-serif',
+  body:    '"Inter", system-ui, sans-serif',
+  mono:    'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+};
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+const clamp = (x, a=0, b=1) => Math.max(a, Math.min(b, x));
+const lerp  = (a, b, t) => a + (b - a) * t;
+const easeOutQuart = t => 1 - Math.pow(1 - t, 4);
+const easeInQuart  = t => t * t * t * t;
+const easeOutBack = (t, s=1.7) => 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2);
+
+// fade+rise entrance: returns {opacity, transform}
+const rise = (t, at, dur=0.5, dist=30) => {
+  const a = clamp((t - at) / dur);
+  return { opacity: a, transform: `translateY(${dist * (1 - easeOutQuart(a))}px)` };
+};
+// scene-wide exit fade over the last 0.4s
+const exitA = (t, d) => (d - t) < 0.4 ? clamp((d - t) / 0.4) : 1;
+
+// ─── shared: keycap ─────────────────────────────────────────────────────────
+const Keycap = ({ label, t, pressAt = null, size = 60, wide = false }) => {
+  let pressed = 0;
+  if (pressAt !== null) {
+    const dt = t - pressAt;
+    if (dt > 0 && dt < 0.22) pressed = 1 - Math.abs(dt - 0.11) / 0.11;
+  }
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      minWidth: wide ? size * 1.9 : size, height: size, padding: '0 14px',
+      borderRadius: 12,
+      background: pressed > 0.1 ? PALETTE.accent : PALETTE.cardHi,
+      border: `1.5px solid ${pressed > 0.1 ? PALETTE.accent : '#34343E'}`,
+      boxShadow: pressed > 0.1
+        ? `0 2px 0 #34343E, 0 0 ${24 * pressed}px rgba(99,102,241,0.5)`
+        : '0 4px 0 #26262E',
+      transform: `translateY(${pressed * 3}px)`,
+      color: pressed > 0.1 ? '#fff' : PALETTE.ink,
+      fontFamily: TYPE.mono, fontSize: size * 0.42, fontWeight: 600,
+    }}>{label}</div>
+  );
+};
+
+// ─── shared: stylized inbox (abstract, not Gmail trade dress) ───────────────
+const EMAILS = [
+  { from: 'Maya Chen',   subj: 'Q3 planning notes',        snip: 'Draft attached, comments by Friday',   time: '9:12 AM', c: '#E879A0', unread: true,  imp: true  },
+  { from: 'Stripe',      subj: 'Invoice #2041 paid',       snip: '$1,840.00 received from Acme Co',      time: '8:54 AM', c: '#7DD3FC', unread: false, imp: false },
+  { from: 'Alex Rivera', subj: 'Standup moved to 10am',    snip: 'Conflicts with the design review so',  time: '8:31 AM', c: '#86EFAC', unread: true,  imp: true  },
+  { from: 'GitHub',      subj: 'PR #214 review requested', snip: 'inboxkeys/extension: harden the',    time: '8:02 AM', c: '#C4B5FD', unread: false, imp: false },
+  { from: 'Dana K',      subj: 'Offsite agenda',           snip: 'Two options for the venue, both walk', time: '7:48 AM', c: '#FCD34D', unread: false, imp: true  },
+  { from: 'Linear',      subj: 'Cycle 18 starts Monday',   snip: '12 issues carried over from cycle 17', time: '7:15 AM', c: '#A5B4FC', unread: true,  imp: false },
+  { from: 'Sam Park',    subj: 'Quick question re: pricing', snip: 'Before I send the proposal over,',   time: '6:58 AM', c: '#F9A8D4', unread: false, imp: false },
+];
+
+const ROW_H = 86;
+
+const InboxRow = ({ e, cursor, selected, style }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: 22, height: ROW_H,
+    padding: '0 28px',
+    background: selected ? 'rgba(99,102,241,0.12)' : (cursor ? PALETTE.cardHi : 'transparent'),
+    borderBottom: `1px solid ${PALETTE.line}`,
+    borderLeft: cursor || selected ? `4px solid ${PALETTE.accent}` : '4px solid transparent',
+    ...style,
+  }}>
+    <div style={{
+      width: 26, height: 26, borderRadius: 7, flex: 'none',
+      border: `2px solid ${selected ? PALETTE.accent : '#3A3A45'}`,
+      background: selected ? PALETTE.accent : 'transparent',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontSize: 16, fontWeight: 800,
+    }}>{selected ? '✓' : ''}</div>
+    <div style={{ width: 44, height: 44, borderRadius: 22, background: e.c, flex: 'none', opacity: 0.9 }} />
+    <div style={{ width: 240, flex: 'none', fontSize: 24, fontWeight: e.unread ? 700 : 500, color: e.unread ? PALETTE.ink : '#A8A8B3', whiteSpace: 'nowrap', overflow: 'hidden' }}>{e.from}</div>
+    <div style={{ flex: 1, fontSize: 23, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+      <span style={{ fontWeight: e.unread ? 700 : 500, color: e.unread ? PALETTE.ink : '#A8A8B3' }}>{e.subj}</span>
+      <span style={{ color: PALETTE.muted, fontWeight: 400 }}>{'  —  ' + e.snip}</span>
+    </div>
+    <div style={{ width: 96, flex: 'none', textAlign: 'right', fontSize: 19, color: PALETTE.muted, fontVariantNumeric: 'tabular-nums' }}>{e.time}</div>
+  </div>
+);
+
+// tabs: null or { items: [..], active: i, switchA: 0..1 crossfade progress }
+const InboxMock = ({ width = 1500, emails = EMAILS, cursorIdx = -1, selected = [], rowFx = null, tabs = null, dim = 1 }) => (
+  <div style={{
+    width, borderRadius: 20, overflow: 'hidden',
+    background: PALETTE.card, border: `1px solid ${PALETTE.line}`,
+    boxShadow: '0 40px 120px rgba(0,0,0,0.55)',
+    filter: `brightness(${dim})`,
+  }}>
+    {/* window bar */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 18, height: 68, padding: '0 28px', borderBottom: `1px solid ${PALETTE.line}` }}>
+      <div style={{ display: 'flex', gap: 9 }}>
+        {['#3A3A45', '#3A3A45', '#3A3A45'].map((c, i) => <div key={i} style={{ width: 13, height: 13, borderRadius: 7, background: c }} />)}
+      </div>
+      <div style={{
+        flex: 1, maxWidth: 560, height: 40, margin: '0 auto', borderRadius: 20,
+        background: PALETTE.cardHi, display: 'flex', alignItems: 'center',
+        padding: '0 18px', color: PALETTE.muted, fontSize: 19, gap: 10,
+      }}>
+        <span style={{ fontSize: 17 }}>⌕</span> Search mail
+      </div>
+      <div style={{ width: 60 }} />
+    </div>
+    {/* split-inbox tab bar */}
+    {tabs && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, height: 64, padding: '0 28px', borderBottom: `1px solid ${PALETTE.line}` }}>
+        {tabs.items.map((name, i) => (
+          <div key={name} style={{
+            padding: '9px 24px', borderRadius: 999, fontSize: 21, fontWeight: 600,
+            background: i === tabs.active ? PALETTE.accent : 'transparent',
+            color: i === tabs.active ? '#fff' : PALETTE.muted,
+            border: `1.5px solid ${i === tabs.active ? PALETTE.accent : '#34343E'}`,
+            transition: 'none',
+          }}>{name}</div>
+        ))}
+        <div style={{ marginLeft: 'auto', color: PALETTE.muted, fontSize: 22 }}>⚙</div>
+      </div>
+    )}
+    {/* rows; fixed-height area so filtered tabs don't shrink the card */}
+    <div style={{ opacity: tabs ? tabs.switchA : 1, minHeight: ROW_H * 7 }}>
+      {emails.map((e, i) => {
+        const fx = rowFx ? rowFx(i) : {};
+        return <InboxRow key={e.from + e.subj} e={e} cursor={i === cursorIdx} selected={selected.includes(i)} style={fx} />;
+      })}
+    </div>
+  </div>
+);
+
+// ─── Scene 1: hook ──────────────────────────────────────────────────────────
+const SceneHook = ({ t, d }) => {
+  const words = 'Gmail at the speed of thought.'.split(' ');
+  const kbA = clamp((t - 2.4) / 0.45);
+  const kbS = easeOutBack(kbA);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: PALETTE.bg, color: PALETTE.ink, fontFamily: TYPE.display, opacity: exitA(t, d) }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 70 }}>
+        <div style={{ fontSize: 104, fontWeight: 800, letterSpacing: -3.5, textAlign: 'center', maxWidth: 1500, lineHeight: 1.02 }}>
+          {words.map((w, i) => {
+            const a = clamp((t - 0.25 - i * 0.09) / 0.45);
+            return (
+              <span key={i} style={{
+                display: 'inline-block', marginRight: 26,
+                opacity: a, transform: `translateY(${26 * (1 - easeOutQuart(a))}px)`,
+                color: w === 'speed' ? PALETTE.accent : PALETTE.ink,
+              }}>{w}</span>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 18, opacity: kbA, transform: `scale(${kbS})` }}>
+          <Keycap label="⌘" t={t} pressAt={2.6} size={84} />
+          <Keycap label="K" t={t} pressAt={2.6} size={84} />
+        </div>
+        <div style={{ ...rise(t, 3.3), fontSize: 30, fontWeight: 500, color: PALETTE.muted }}>
+          Meet Inbox Keys
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Scene 2: command palette ───────────────────────────────────────────────
+const COMMANDS = [
+  { name: 'Reply all',        key: '↵',   match: true  },
+  { name: 'Reply',            key: 'R',   match: true  },
+  { name: 'Report spam',      key: '!',   match: true  },
+  { name: 'Archive',          key: 'E',   match: false },
+  { name: 'Go to Inbox',      key: 'G I', match: false },
+  { name: 'Switch account',   key: 'G 1', match: false },
+];
+const TYPED = 'rep';
+
+const ScenePalette = ({ t, d }) => {
+  const modalA = clamp((t - 0.35) / 0.4);
+  const typed = TYPED.slice(0, Math.min(TYPED.length, Math.max(0, Math.floor((t - 1.2) / 0.18) + (t > 1.2 ? 1 : 0))));
+  const filterA = clamp((t - 1.9) / 0.4);       // non-matching rows collapse
+  const confirmFlash = t > 3.4 && t < 3.7 ? 1 - (t - 3.4) / 0.3 : 0;
+  const caret = Math.floor(t * 2.4) % 2 === 0;
+  const visible = COMMANDS.filter(c => filterA < 0.5 || c.match);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: PALETTE.bg, fontFamily: TYPE.display, color: PALETTE.ink, opacity: exitA(t, d) }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <InboxMock dim={0.5} />
+      </div>
+      {/* the palette */}
+      <div style={{
+        position: 'absolute', left: '50%', top: 190, transform: `translateX(-50%) scale(${lerp(0.96, 1, easeOutQuart(modalA))})`,
+        opacity: modalA, width: 1020, borderRadius: 24,
+        background: '#13131A', border: `1.5px solid #3A3A45`,
+        boxShadow: `0 60px 160px rgba(0,0,0,0.8), 0 0 0 7px rgba(99,102,241,${0.14 + confirmFlash * 0.3})`,
+        overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '28px 34px', borderBottom: `1px solid ${PALETTE.line}` }}>
+          <span style={{ color: PALETTE.muted, fontSize: 32 }}>⌕</span>
+          <span style={{ fontFamily: TYPE.mono, fontSize: 38, fontWeight: 500 }}>
+            {typed}<span style={{ opacity: caret ? 1 : 0, color: PALETTE.accent }}>|</span>
+          </span>
+          <span style={{ marginLeft: 'auto', fontFamily: TYPE.mono, fontSize: 21, color: PALETTE.muted, border: `1px solid #3A3A45`, borderRadius: 8, padding: '5px 12px' }}>⌘K</span>
+        </div>
+        {visible.map((c, i) => {
+          const a = clamp((t - 0.6 - i * 0.07) / 0.4);
+          const isTop = filterA >= 0.5 && i === 0;
+          return (
+            <div key={c.name} style={{
+              display: 'flex', alignItems: 'center', padding: '0 34px', height: 86,
+              opacity: a, transform: `translateY(${14 * (1 - easeOutQuart(a))}px)`,
+              background: isTop ? `rgba(99,102,241,${0.26 + confirmFlash * 0.4})` : 'transparent',
+              borderLeft: isTop ? `5px solid ${PALETTE.accent}` : '5px solid transparent',
+            }}>
+              <span style={{ fontSize: 31, fontWeight: isTop ? 700 : 500, color: isTop ? '#fff' : '#C4C4CE' }}>{c.name}</span>
+              <span style={{ marginLeft: 'auto', fontFamily: TYPE.mono, fontSize: 21, color: PALETTE.muted, border: `1px solid #3A3A45`, borderRadius: 8, padding: '5px 14px' }}>{c.key}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 110, textAlign: 'center', ...rise(t, 4.6) }}>
+        <span style={{ fontSize: 52, fontWeight: 800, letterSpacing: -1.5 }}>One shortcut. <span style={{ color: PALETTE.accent }}>Every action.</span></span>
+      </div>
+    </div>
+  );
+};
+
+// ─── Scene 3: split inbox ───────────────────────────────────────────────────
+const SceneSplit = ({ t, d }) => {
+  const TAB_T = [0, 1.9, 3.5];
+  let active = 0;
+  if (t >= TAB_T[2]) active = 2; else if (t >= TAB_T[1]) active = 1;
+  const sinceSwitch = t - TAB_T[active];
+  const switchA = active === 0 ? 1 : clamp(sinceSwitch / 0.3);
+  const sets = [EMAILS, EMAILS.filter(e => e.imp), EMAILS.filter(e => e.unread)];
+  const enter = rise(t, 0.15, 0.55, 36);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: PALETTE.bg, fontFamily: TYPE.display, color: PALETTE.ink, opacity: exitA(t, d) }}>
+      <div style={{ position: 'absolute', top: 92, left: 0, right: 0, textAlign: 'center', ...rise(t, 0.1) }}>
+        <span style={{ fontSize: 60, fontWeight: 800, letterSpacing: -2 }}>Split your inbox. <span style={{ color: PALETTE.accent }}>Any search is a tab.</span></span>
+      </div>
+      <div style={{ position: 'absolute', left: '50%', top: 230, transform: 'translateX(-50%)', ...enter, transform: `translateX(-50%) translateY(${36 * (1 - easeOutQuart(clamp((t - 0.15) / 0.55)))}px)` }}>
+        <InboxMock
+          emails={sets[active]}
+          tabs={{ items: ['Inbox', 'Important', 'Unread'], active, switchA }}
+        />
+      </div>
+      <div style={{ position: 'absolute', right: 130, bottom: 86, display: 'flex', alignItems: 'center', gap: 16, ...rise(t, 1.0) }}>
+        <span style={{ fontSize: 24, color: PALETTE.muted, fontWeight: 500 }}>cycle with</span>
+        <Keycap label="Tab" t={t} pressAt={t >= TAB_T[2] ? TAB_T[2] : TAB_T[1]} size={58} wide />
+      </div>
+    </div>
+  );
+};
+
+// ─── Scene 4: triage ────────────────────────────────────────────────────────
+// timeline: j .8 → j 1.4 → x 2.0 → j 2.6 → x 3.2 → e 4.0 archive rows 2,3
+const SceneTriage = ({ t, d }) => {
+  let cursorIdx = 1;
+  if (t >= 2.6) cursorIdx = 3; else if (t >= 1.4) cursorIdx = 2; else if (t >= 0.8) cursorIdx = 1;
+  if (t < 0.8) cursorIdx = 0;
+  const selected = [];
+  if (t >= 2.0 && t < 4.0) selected.push(2);
+  if (t >= 3.2 && t < 4.0) selected.push(3);
+  const gone = t >= 4.0;
+  const ga = clamp((t - 4.0) / 0.4);
+  const shiftA = clamp((t - 4.15) / 0.4);
+  const rowFx = (i) => {
+    if (!gone) return {};
+    if (i === 2 || i === 3) return { transform: `translateX(${560 * easeInQuart(ga)}px)`, opacity: 1 - ga };
+    if (i > 3) return { transform: `translateY(${-2 * ROW_H * easeOutQuart(shiftA)}px)` };
+    return {};
+  };
+  const KEYS = [ ['J', 0.8], ['J', 1.4], ['X', 2.0], ['J', 2.6], ['X', 3.2], ['E', 4.0] ];
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: PALETTE.bg, fontFamily: TYPE.display, color: PALETTE.ink, opacity: exitA(t, d) }}>
+      <div style={{ position: 'absolute', top: 92, left: 0, right: 0, textAlign: 'center', ...rise(t, 0.1) }}>
+        <span style={{ fontSize: 60, fontWeight: 800, letterSpacing: -2 }}>Triage without touching the mouse.</span>
+      </div>
+      <div style={{ position: 'absolute', left: '50%', top: 230, transform: 'translateX(-50%)', overflow: 'hidden', borderRadius: 20 }}>
+        <InboxMock cursorIdx={gone && ga > 0.6 ? 2 : cursorIdx} selected={selected} rowFx={rowFx} />
+      </div>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 86, display: 'flex', justifyContent: 'center', gap: 16, ...rise(t, 0.5) }}>
+        {KEYS.map(([k, at], i) => (
+          <div key={i} style={{ opacity: t > at - 0.4 ? 1 : 0.28 }}>
+            <Keycap label={k} t={t} pressAt={at} size={56} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── Scene 5: privacy ───────────────────────────────────────────────────────
+const SceneLock = ({ t }) => {
+  const a = clamp(t / 1.0);
+  const LEN = 260;
+  return (
+    <svg width="120" height="120" viewBox="0 0 100 100">
+      <rect x="18" y="42" width="64" height="46" rx="12"
+        fill="none" stroke={PALETTE.accent} strokeWidth="6"
+        strokeDasharray={LEN} strokeDashoffset={LEN * (1 - easeOutQuart(a))} />
+      <path d="M 32 42 V 30 a 18 18 0 0 1 36 0 V 42"
+        fill="none" stroke={PALETTE.accent} strokeWidth="6" strokeLinecap="round"
+        strokeDasharray={LEN} strokeDashoffset={LEN * (1 - easeOutQuart(clamp((t - 0.3) / 1.0)))} />
+      <circle cx="50" cy="63" r="6" fill={PALETTE.accent} opacity={clamp((t - 1.1) / 0.4)} />
+    </svg>
+  );
+};
+
+const ScenePrivacy = ({ t, d }) => {
+  const lines = ['No Gmail API.', 'No servers.', 'No tracking.'];
+  const monoTyped = 'permissions: ["storage"]';
+  const monoN = Math.max(0, Math.floor((t - 4.0) / 0.05));
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: PALETTE.bg, fontFamily: TYPE.display, color: PALETTE.ink, opacity: exitA(t, d) }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 44 }}>
+        <SceneLock t={t} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, textAlign: 'center' }}>
+          {lines.map((line, i) => {
+            const s = rise(t, 1.2 + i * 0.55, 0.5, 24);
+            return <div key={line} style={{ ...s, fontSize: 76, fontWeight: 800, letterSpacing: -2.5, lineHeight: 1.02 }}>{line}</div>;
+          })}
+        </div>
+        <div style={{ ...rise(t, 4.0, 0.4, 14), fontFamily: TYPE.mono, fontSize: 30, color: PALETTE.muted, background: PALETTE.card, border: `1px solid ${PALETTE.line}`, borderRadius: 14, padding: '16px 28px' }}>
+          {monoTyped.slice(0, monoN)}<span style={{ color: PALETTE.accent }}>|</span>
+        </div>
+        <div style={{ ...rise(t, 5.4), fontSize: 34, fontWeight: 600, color: PALETTE.accent }}>
+          100% open source
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Scene 6: outro ─────────────────────────────────────────────────────────
+const SceneOutro = ({ t, d }) => {
+  const kbA = clamp((t - 0.15) / 0.45);
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: PALETTE.bg, color: PALETTE.ink, fontFamily: TYPE.display }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 42 }}>
+        <div style={{ display: 'flex', gap: 16, opacity: kbA, transform: `scale(${easeOutBack(kbA)})` }}>
+          <Keycap label="⌘" t={t} pressAt={0.5} size={72} />
+          <Keycap label="K" t={t} pressAt={0.5} size={72} />
+        </div>
+        <div style={{ ...rise(t, 0.55), fontSize: 132, fontWeight: 800, letterSpacing: -5 }}>
+          Mail<span style={{ color: PALETTE.accent }}>palette</span>
+        </div>
+        <div style={{ ...rise(t, 1.1), fontSize: 38, fontWeight: 600, color: PALETTE.ink }}>
+          Free on the Chrome Web Store
+        </div>
+        <div style={{ ...rise(t, 1.5), fontFamily: TYPE.mono, fontSize: 26, color: PALETTE.muted }}>
+          github.com/hadijaveed
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SCENES = [
+  { id: 'hook',    duration: 5, Component: SceneHook },
+  { id: 'palette', duration: 7, Component: ScenePalette },
+  { id: 'split',   duration: 6, Component: SceneSplit },
+  { id: 'triage',  duration: 6, Component: SceneTriage },
+  { id: 'privacy', duration: 7, Component: ScenePrivacy },
+  { id: 'outro',   duration: 5, Component: SceneOutro },
+];
+
+// ─── Stage (do not modify lightly — satisfies claude-design-render HANDOFF) ──
+
+const useRenderMode = () =>
+  typeof window !== 'undefined' && /[?&]render=1\b/.test(window.location.search);
+
+const getFrameOverride = () => {
+  if (typeof window === 'undefined') return null;
+  const m = window.location.search.match(/[?&]frame=([\d.]+)/);
+  return m ? parseFloat(m[1]) : null;
+};
+
+const Stage = () => {
+  const renderMode = useRenderMode();
+  const frameOverride = getFrameOverride();
+  const [scale, setScale] = React.useState(1);
+  const [playing, setPlaying] = React.useState(renderMode && frameOverride === null);
+  const [t, setT] = React.useState(frameOverride !== null ? frameOverride : 0);
+  const stageRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (renderMode) { setScale(1); return; }
+    const fit = () => {
+      const availW = window.innerWidth;
+      const availH = window.innerHeight - 44;
+      setScale(Math.min(availW / 1920, availH / 1080));
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [renderMode]);
+
+  React.useEffect(() => {
+    if (!playing) return;
+    let raf, start = performance.now() - t * 1000;
+    const tick = (now) => {
+      const next = (now - start) / 1000;
+      if (next >= DURATION) { setT(DURATION); setPlaying(false); return; }
+      setT(next);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);
+
+  React.useEffect(() => {
+    if (renderMode) return;
+    const start = () => {
+      if (window.__musicStarted) return;
+      window.__musicStarted = true;
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (typeof window.startMusic === 'function') window.startMusic(ctx);
+      document.querySelector('.audio-hint')?.remove();
+    };
+    window.addEventListener('click', start, { once: true });
+    return () => window.removeEventListener('click', start);
+  }, [renderMode]);
+
+  let elapsed = 0, active = SCENES[0], localT = t;
+  for (const s of SCENES) {
+    if (t < elapsed + s.duration) { active = s; localT = t - elapsed; break; }
+    elapsed += s.duration;
+  }
+  const Scene = active.Component;
+
+  return (
+    <div style={{ width: '100vw', height: '100vh', background: '#000', overflow: 'hidden' }}>
+      <div ref={stageRef} style={{
+        position: 'absolute',
+        width: 1920, height: 1080,
+        left: '50%', top: renderMode ? 0 : '50%',
+        transform: renderMode
+          ? 'translateX(-50%)'
+          : `translate(-50%, -50%) scale(${scale})`,
+        transformOrigin: 'center center',
+        background: PALETTE.bg,
+      }}>
+        <Scene t={localT} d={active.duration} palette={PALETTE} type={TYPE} />
+      </div>
+      {!renderMode && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, height: 44,
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '0 16px', background: 'rgba(0,0,0,0.85)', color: '#fff',
+          fontFamily: 'system-ui, sans-serif', fontSize: 13,
+        }}>
+          <button onClick={() => setPlaying(p => !p)} style={{
+            background: '#fff', color: '#000', border: 0, borderRadius: 4,
+            padding: '4px 12px', cursor: 'pointer', fontWeight: 600,
+          }}>
+            {playing ? 'Pause' : 'Play'}
+          </button>
+          <input
+            type="range" min="0" max={DURATION} step="0.01" value={t}
+            onChange={e => { setT(parseFloat(e.target.value)); setPlaying(false); }}
+            style={{ flex: 1 }}
+          />
+          <span style={{ fontVariantNumeric: 'tabular-nums', minWidth: 80, textAlign: 'right' }}>
+            {t.toFixed(2)} / {DURATION.toFixed(2)}s
+          </span>
+          <span style={{ opacity: 0.7 }}>{active.id}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Stage />);
+
+</script>
+
+<!-- MUSIC: minimal synth pulse @104bpm, hats, privacy pad, keyboard click accents -->
+<script>
+window.startMusic = function(ctx) {
+  const t0 = ctx.currentTime;
+  const master = ctx.createGain();
+  master.gain.value = 0.2;
+  master.connect(ctx.destination);
+
+  // ── bass arp: square through lowpass, every 8th ──
+  const arpBus = ctx.createGain();
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 1;
+  arpBus.connect(lp).connect(master);
+  arpBus.gain.setValueAtTime(0.0001, t0);
+  arpBus.gain.linearRampToValueAtTime(1, t0 + 1.2);
+  // duck the arp during the privacy scene (24-31s), return for outro
+  arpBus.gain.setValueAtTime(1, t0 + 23.2);
+  arpBus.gain.linearRampToValueAtTime(0.18, t0 + 24.4);
+  arpBus.gain.setValueAtTime(0.18, t0 + 30.4);
+  arpBus.gain.linearRampToValueAtTime(1, t0 + 31.4);
+  arpBus.gain.setValueAtTime(1, t0 + 34);
+  arpBus.gain.linearRampToValueAtTime(0.0001, t0 + 36);
+
+  const bpm = 104, eighth = 60 / bpm / 2;
+  const pattern = [110, 110, 220, 164.81, 110, 146.83, 220, 196];
+  const total = Math.ceil(36 / eighth);
+  for (let i = 0; i < total; i++) {
+    const at = t0 + i * eighth;
+    const f = pattern[i % pattern.length];
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(i % 2 === 0 ? 0.14 : 0.07, at + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + eighth * 0.85);
+    osc.connect(g).connect(arpBus);
+    osc.start(at); osc.stop(at + eighth);
+  }
+
+  // ── hats: filtered noise on offbeats, from 5s to 24s and 31-35s ──
+  const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.06, ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const hatAt = (at, vol) => {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 7000;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.05);
+    src.connect(hp).connect(g).connect(master);
+    src.start(at);
+  };
+  for (let i = 0; i < total; i++) {
+    const at = t0 + i * eighth;
+    const sec = i * eighth;
+    if (i % 2 === 1 && ((sec > 5 && sec < 23.5) || (sec > 31 && sec < 34.5))) hatAt(at, 0.05);
+  }
+
+  // ── privacy pad: warm triangle chord swell 24-31.5s ──
+  [220, 277.18, 329.63, 440].forEach((f, i) => {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t0 + 24);
+    g.gain.linearRampToValueAtTime(0.07, t0 + 25.2 + i * 0.2);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + 31.5);
+    osc.connect(g).connect(master);
+    osc.start(t0 + 24); osc.stop(t0 + 31.6);
+  });
+
+  // ── keyboard click accents (bandpass noise ticks) ──
+  const clickAt = (at) => {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.22, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.04);
+    src.connect(bp).connect(g).connect(master);
+    src.start(at);
+  };
+  // hook ⌘K, palette typing + enter, tab switches, j j x j x e, outro ⌘K
+  [2.6,
+   6.2, 6.38, 6.56, 8.4,
+   13.9, 15.5,
+   18.8, 19.4, 20.0, 20.6, 21.2, 22.0,
+   31.5,
+  ].forEach(s => clickAt(t0 + s));
+};
+</script>
+
+</body>
+</html>

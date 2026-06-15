@@ -32,7 +32,7 @@ async function loadWithStoredTabs(tabs) {
     },
   };
   window.eval(storageScript);
-  const cache = await window.Mailpalette.storage.load();
+  const cache = await window.InboxKeys.storage.load();
   return { cache, savedPatch };
 }
 

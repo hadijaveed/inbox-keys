@@ -3,10 +3,10 @@
 // Gmail multi-login lives at /mail/u/<index>/. We learn which email maps to
 // which index as the user visits each account, persist it, and offer fast
 // switching from the palette.
-window.Mailpalette = window.Mailpalette || {};
+window.InboxKeys = window.InboxKeys || {};
 
 (function () {
-  const { gmail, storage } = Mailpalette;
+  const { gmail, storage } = InboxKeys;
 
   async function rememberCurrent() {
     const idx = String(gmail.accountIndex());
@@ -28,12 +28,12 @@ window.Mailpalette = window.Mailpalette || {};
 
   function switchTo(index) {
     if (index === gmail.accountIndex()) {
-      Mailpalette.toast("Already on this account");
+      InboxKeys.toast("Already on this account");
       return;
     }
     // Preserve the current section, but drop any open thread id — that id won't
     // exist in the other account, so land on the list view instead.
-    const hash = Mailpalette.hashutil.parentHash(location.hash || "#inbox");
+    const hash = InboxKeys.hashutil.parentHash(location.hash || "#inbox");
     // Real navigation (trusted) — Gmail's own multi-login switch.
     location.href = `/mail/u/${index}/${hash}`;
   }
@@ -75,42 +75,42 @@ window.Mailpalette = window.Mailpalette || {};
     for (let i = 0; i < count; i++) working.push({ index: i, email: names[String(i)] || "" });
 
     cfg = document.createElement("div");
-    cfg.className = "mailpalette-overlay mailpalette-overlay--open mailpalette-cfg-overlay";
+    cfg.className = "inboxkeys-overlay inboxkeys-overlay--open inboxkeys-cfg-overlay";
     cfg.innerHTML = `
-      <div class="mailpalette-modal mailpalette-cfg" role="dialog" aria-label="Configure accounts">
-        <div class="mailpalette-cfg-head">
+      <div class="inboxkeys-modal inboxkeys-cfg" role="dialog" aria-label="Configure accounts">
+        <div class="inboxkeys-cfg-head">
           <div>
-            <div class="mailpalette-cfg-title">Accounts</div>
-            <div class="mailpalette-cfg-sub">Each row is a signed-in Google account. Order matches Gmail's <code>/u/0</code>, <code>/u/1</code>… Switch with <code>g 0</code>–<code>g 8</code> or from the palette.</div>
+            <div class="inboxkeys-cfg-title">Accounts</div>
+            <div class="inboxkeys-cfg-sub">Each row is a signed-in Google account. Order matches Gmail's <code>/u/0</code>, <code>/u/1</code>… Switch with <code>g 0</code>–<code>g 8</code> or from the palette.</div>
           </div>
-          <button class="mailpalette-cfg-x" aria-label="Close">esc</button>
+          <button class="inboxkeys-cfg-x" aria-label="Close">esc</button>
         </div>
-        <div class="mailpalette-cfg-list"></div>
-        <button class="mailpalette-cfg-add">+ Add account</button>
-        <div class="mailpalette-cfg-foot">
-          <span class="mailpalette-cfg-hint">Tip: <code>g</code> then the number jumps to that account anywhere in Gmail.</span>
+        <div class="inboxkeys-cfg-list"></div>
+        <button class="inboxkeys-cfg-add">+ Add account</button>
+        <div class="inboxkeys-cfg-foot">
+          <span class="inboxkeys-cfg-hint">Tip: <code>g</code> then the number jumps to that account anywhere in Gmail.</span>
           <span>
-            <button class="mailpalette-btn mailpalette-btn--ghost mailpalette-cfg-cancel">Cancel</button>
-            <button class="mailpalette-btn mailpalette-cfg-save">Save</button>
+            <button class="inboxkeys-btn inboxkeys-btn--ghost inboxkeys-cfg-cancel">Cancel</button>
+            <button class="inboxkeys-btn inboxkeys-cfg-save">Save</button>
           </span>
         </div>
       </div>`;
     document.documentElement.appendChild(cfg);
 
-    const list = cfg.querySelector(".mailpalette-cfg-list");
+    const list = cfg.querySelector(".inboxkeys-cfg-list");
     const cur = gmail.accountIndex();
 
     function renderRows() {
       list.innerHTML = "";
       working.forEach((acc, i) => {
         const row = document.createElement("div");
-        row.className = "mailpalette-cfg-row";
+        row.className = "inboxkeys-cfg-row";
         row.innerHTML = `
-          <span class="mailpalette-cfg-acct-key">g ${acc.index}${acc.index === cur ? " ·" : ""}</span>
-          <input class="mailpalette-cfg-query mailpalette-cfg-acct-email" value="${escapeAttr(acc.email)}" placeholder="name@gmail.com (account u/${acc.index})" />
-          <button class="mailpalette-cfg-del" title="Remove">✕</button>`;
-        row.querySelector(".mailpalette-cfg-acct-email").addEventListener("input", (e) => (working[i].email = e.target.value.trim()));
-        row.querySelector(".mailpalette-cfg-del").addEventListener("click", () => {
+          <span class="inboxkeys-cfg-acct-key">g ${acc.index}${acc.index === cur ? " ·" : ""}</span>
+          <input class="inboxkeys-cfg-query inboxkeys-cfg-acct-email" value="${escapeAttr(acc.email)}" placeholder="name@gmail.com (account u/${acc.index})" />
+          <button class="inboxkeys-cfg-del" title="Remove">✕</button>`;
+        row.querySelector(".inboxkeys-cfg-acct-email").addEventListener("input", (e) => (working[i].email = e.target.value.trim()));
+        row.querySelector(".inboxkeys-cfg-del").addEventListener("click", () => {
           working.splice(i, 1);
           working.forEach((a, n) => (a.index = n)); // reindex: rows are positional
           renderRows();
@@ -120,20 +120,20 @@ window.Mailpalette = window.Mailpalette || {};
     }
     renderRows();
 
-    cfg.querySelector(".mailpalette-cfg-add").addEventListener("click", () => {
+    cfg.querySelector(".inboxkeys-cfg-add").addEventListener("click", () => {
       working.push({ index: working.length, email: "" });
       renderRows();
     });
-    cfg.querySelector(".mailpalette-cfg-cancel").addEventListener("click", closeConfig);
-    cfg.querySelector(".mailpalette-cfg-x").addEventListener("click", closeConfig);
-    cfg.querySelector(".mailpalette-cfg-save").addEventListener("click", async () => {
+    cfg.querySelector(".inboxkeys-cfg-cancel").addEventListener("click", closeConfig);
+    cfg.querySelector(".inboxkeys-cfg-x").addEventListener("click", closeConfig);
+    cfg.querySelector(".inboxkeys-cfg-save").addEventListener("click", async () => {
       const map = {};
       working.forEach((a, i) => {
         if (a.email) map[String(i)] = a.email;
       });
       await storage.set({ accountNames: map });
       closeConfig();
-      Mailpalette.toast("Accounts saved");
+      InboxKeys.toast("Accounts saved");
     });
     cfg.addEventListener("mousedown", (e) => {
       if (e.target === cfg) closeConfig();
@@ -155,5 +155,5 @@ window.Mailpalette = window.Mailpalette || {};
     cfg = null;
   }
 
-  Mailpalette.accounts = { rememberCurrent, known, switchTo, next, openConfig };
+  InboxKeys.accounts = { rememberCurrent, known, switchTo, next, openConfig };
 })();

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <g transform="rotate(-6 256 262)">
+    <!-- envelope body -->
+    <rect x="80" y="160" width="352" height="240" rx="36" fill="#FFF6EC" stroke="#23242F" stroke-width="22"/>
+    <!-- plain flap V -->
+    <path d="M 106 190 L 256 310 L 406 190" fill="none" stroke="#23242F" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 106 190 L 256 310 L 406 190" fill="none" stroke="#6366F1" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- big black ⌘ badge with white die-cut outline -->
+    <text x="256" y="436" font-family="-apple-system, 'SF Pro Display', 'Apple Symbols', sans-serif" font-size="220" font-weight="800" text-anchor="middle" paint-order="stroke" stroke="#FFFFFF" stroke-width="24" stroke-linejoin="round" fill="#23242F">&#8984;</text>
+  </g>
+</svg>

@@ -1,11 +1,11 @@
 // The command registry: every action the palette and hotkeys can run.
 // Each command: { id, title, group, hint?, keys, contexts, run() }.
-// `keys` is derived from Mailpalette_KEYMAP.keysFor(id, keyOverrides); "g i" is a chord
+// `keys` is derived from InboxKeys_KEYMAP.keysFor(id, keyOverrides); "g i" is a chord
 // (press g then i). `contexts` comes from the shared catalog.
-window.Mailpalette = window.Mailpalette || {};
+window.InboxKeys = window.InboxKeys || {};
 
 (function () {
-  const { gmail, accounts, calendar, tabs, storage } = Mailpalette;
+  const { gmail, accounts, calendar, tabs, storage } = InboxKeys;
 
   function nav(hash) {
     return () => gmail.setHash(hash);
@@ -13,14 +13,14 @@ window.Mailpalette = window.Mailpalette || {};
 
   // Pull keys + contexts for a catalog command id, applying user overrides.
   function entry(id) {
-    return (Mailpalette_KEYMAP.commands || []).find((c) => c.id === id) || null;
+    return (InboxKeys_KEYMAP.commands || []).find((c) => c.id === id) || null;
   }
   function keysFor(id) {
-    return Mailpalette_KEYMAP.keysFor(id, storage.get("keyOverrides") || {});
+    return InboxKeys_KEYMAP.keysFor(id, storage.get("keyOverrides") || {});
   }
   function contextsFor(id) {
     const e = entry(id);
-    return e ? e.contexts : Mailpalette_KEYMAP.DEFAULT_CONTEXTS;
+    return e ? e.contexts : InboxKeys_KEYMAP.DEFAULT_CONTEXTS;
   }
   // Build a base command from a catalog id: catalog supplies title/group/keys/
   // contexts; the caller supplies run() and an optional hint override.
@@ -38,15 +38,15 @@ window.Mailpalette = window.Mailpalette || {};
   }
 
   function listSelectionAction(action) {
-    if (gmail.getContext() === "inboxList" && Mailpalette.listnav && Mailpalette.listnav.withSelection) {
-      return Mailpalette.listnav.withSelection(action);
+    if (gmail.getContext() === "inboxList" && InboxKeys.listnav && InboxKeys.listnav.withSelection) {
+      return InboxKeys.listnav.withSelection(action);
     }
     return action();
   }
 
   function listTemporarySelectionAction(action) {
-    if (gmail.getContext() === "inboxList" && Mailpalette.listnav && Mailpalette.listnav.withTemporarySelection) {
-      return Mailpalette.listnav.withTemporarySelection(action);
+    if (gmail.getContext() === "inboxList" && InboxKeys.listnav && InboxKeys.listnav.withTemporarySelection) {
+      return InboxKeys.listnav.withTemporarySelection(action);
     }
     return action();
   }
@@ -57,23 +57,23 @@ window.Mailpalette = window.Mailpalette || {};
       // Compose / messaging
       cmd("compose", () => gmail.compose()),
       cmd("reply", () => gmail.replyToThread()),
-      cmd("reply-all", () => gmail.replyAllToThread(Mailpalette.threadnav.currentCard() || document)),
+      cmd("reply-all", () => gmail.replyAllToThread(InboxKeys.threadnav.currentCard() || document)),
       cmd("forward", () => gmail.forwardThread()),
-      cmd("open-link-or-attachment", () => gmail.openLinkOrAttachment(Mailpalette.threadnav.currentCard() || document)),
+      cmd("open-link-or-attachment", () => gmail.openLinkOrAttachment(InboxKeys.threadnav.currentCard() || document)),
       cmd("attach-file", () => gmail.attachFile()),
       cmd("discard-draft", () => gmail.discardDraft()),
 
       // Triage (archive is context-aware: open thread vs. selected/cursor rows)
-      cmd("archive", () => (gmail.getContext() === "threadView" ? gmail.archiveThread() : Mailpalette.listnav.archive())),
+      cmd("archive", () => (gmail.getContext() === "threadView" ? gmail.archiveThread() : InboxKeys.listnav.archive())),
       cmd("mark-not-done", () => listSelectionAction(() => gmail.markNotDone())),
-      cmd("delete", () => (gmail.getContext() === "threadView" ? gmail.action(["Delete"], "Delete") : Mailpalette.listnav.trash())),
+      cmd("delete", () => (gmail.getContext() === "threadView" ? gmail.action(["Delete"], "Delete") : InboxKeys.listnav.trash())),
       cmd("undo", () => gmail.undo()),
-      cmd("mark-read-unread", () => (gmail.getContext() === "inboxList" ? Mailpalette.listnav.markReadUnread() : gmail.markReadUnread())),
+      cmd("mark-read-unread", () => (gmail.getContext() === "inboxList" ? InboxKeys.listnav.markReadUnread() : gmail.markReadUnread())),
       cmd("mark-read", () => gmail.action(["Mark as read"])),
       cmd("mark-unread", () => gmail.action(["Mark as unread"])),
-      cmd("snooze", () => (gmail.getContext() === "inboxList" ? Mailpalette.listnav.snooze() : gmail.snooze())),
+      cmd("snooze", () => (gmail.getContext() === "inboxList" ? InboxKeys.listnav.snooze() : gmail.snooze())),
       cmd("report-spam", () => gmail.action(["Report spam"])),
-      cmd("star", () => (gmail.getContext() === "threadView" ? gmail.toggleStar(Mailpalette.threadnav.currentCard() || document) : Mailpalette.listnav.toggleStar())),
+      cmd("star", () => (gmail.getContext() === "threadView" ? gmail.toggleStar(InboxKeys.threadnav.currentCard() || document) : InboxKeys.listnav.toggleStar())),
       cmd("mute", () => listSelectionAction(() => gmail.mute())),
       cmd("unsubscribe", () => gmail.unsubscribe()),
       cmd("label", () => listSelectionAction(() => gmail.openLabelMenu())),
@@ -96,16 +96,16 @@ window.Mailpalette = window.Mailpalette || {};
       // List scrolling + thread/tab navigation (engine helpers)
       cmd("go-top", () => {
         gmail.listScrollTop();
-        if (Mailpalette.listnav && Mailpalette.listnav.syncEdgeAfterScroll) Mailpalette.listnav.syncEdgeAfterScroll(-1);
+        if (InboxKeys.listnav && InboxKeys.listnav.syncEdgeAfterScroll) InboxKeys.listnav.syncEdgeAfterScroll(-1);
       }),
       cmd("go-bottom", () => {
         gmail.listScrollBottom();
-        if (Mailpalette.listnav && Mailpalette.listnav.syncEdgeAfterScroll) Mailpalette.listnav.syncEdgeAfterScroll(1);
+        if (InboxKeys.listnav && InboxKeys.listnav.syncEdgeAfterScroll) InboxKeys.listnav.syncEdgeAfterScroll(1);
       }),
-      cmd("expand-message", () => Mailpalette.threadnav.toggleFocused()),
-      cmd("expand-all", () => Mailpalette.threadnav.expandAllToggle()),
-      cmd("next-page", () => Mailpalette.listnav.page(1)),
-      cmd("prev-page", () => Mailpalette.listnav.page(-1)),
+      cmd("expand-message", () => InboxKeys.threadnav.toggleFocused()),
+      cmd("expand-all", () => InboxKeys.threadnav.expandAllToggle()),
+      cmd("next-page", () => InboxKeys.listnav.page(1)),
+      cmd("prev-page", () => InboxKeys.listnav.page(-1)),
       cmd("next-tab", () => tabs.next()),
       cmd("prev-tab", () => tabs.prev()),
       cmd("back-to-list", () => gmail.back()),
@@ -121,7 +121,7 @@ window.Mailpalette = window.Mailpalette || {};
       cmd("search", () => {
         const box = document.querySelector(gmail.SEL.searchInput);
         if (box) {
-          if (Mailpalette.hotkeys && Mailpalette.hotkeys.armSearchEditing) Mailpalette.hotkeys.armSearchEditing();
+          if (InboxKeys.hotkeys && InboxKeys.hotkeys.armSearchEditing) InboxKeys.hotkeys.armSearchEditing();
           box.focus();
         } else {
           gmail.setHash("search/");
@@ -139,7 +139,7 @@ window.Mailpalette = window.Mailpalette || {};
       hint: tab.type === "inbox" ? "Inbox" : tab.query,
       group: "Tabs",
       keys: [],
-      contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
+      contexts: InboxKeys_KEYMAP.DEFAULT_CONTEXTS,
       run: () => tabs.navigate(tab),
     }));
   }
@@ -147,11 +147,11 @@ window.Mailpalette = window.Mailpalette || {};
   function settingsCommands() {
     return [
       {
-        id: "mailpalette-settings",
-        title: "Mailpalette settings...",
+        id: "inboxkeys-settings",
+        title: "InboxKeys settings...",
         group: "Settings",
         keys: [],
-        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: InboxKeys_KEYMAP.DEFAULT_CONTEXTS,
         run: () => tabs.openConfig("tabs"),
       },
       {
@@ -159,7 +159,7 @@ window.Mailpalette = window.Mailpalette || {};
         title: "Configure split inbox tabs...",
         group: "Settings",
         keys: [],
-        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: InboxKeys_KEYMAP.DEFAULT_CONTEXTS,
         run: () => tabs.openConfig("tabs"),
       },
       {
@@ -167,7 +167,7 @@ window.Mailpalette = window.Mailpalette || {};
         title: "Configure keyboard shortcuts...",
         group: "Settings",
         keys: [],
-        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: InboxKeys_KEYMAP.DEFAULT_CONTEXTS,
         run: () => tabs.openConfig("shortcuts"),
       },
       {
@@ -177,7 +177,7 @@ window.Mailpalette = window.Mailpalette || {};
         title: "Verify Gmail selectors (smoke check)",
         group: "Settings",
         keys: [],
-        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: InboxKeys_KEYMAP.DEFAULT_CONTEXTS,
         run: () => gmail.verifySelectors(),
       },
     ];
@@ -206,7 +206,7 @@ window.Mailpalette = window.Mailpalette || {};
         hint: index === cur ? "current" : `g ${index}`,
         group: "Accounts",
         keys: [`g ${index}`],
-        contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
+        contexts: InboxKeys_KEYMAP.DEFAULT_CONTEXTS,
         run: () => accounts.switchTo(index),
       };
     });
@@ -215,7 +215,7 @@ window.Mailpalette = window.Mailpalette || {};
       title: "Configure accounts…",
       group: "Accounts",
       keys: [],
-      contexts: Mailpalette_KEYMAP.DEFAULT_CONTEXTS,
+      contexts: InboxKeys_KEYMAP.DEFAULT_CONTEXTS,
       run: () => accounts.openConfig(),
     });
     return rows;
@@ -241,7 +241,7 @@ window.Mailpalette = window.Mailpalette || {};
   }
 
   // `base` is kept as a getter so callers always see current overrides applied.
-  Mailpalette.commands = {
+  InboxKeys.commands = {
     all,
     register,
     byKeys,

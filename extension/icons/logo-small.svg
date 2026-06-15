@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- envelope body, near full bleed -->
+  <rect x="36" y="96" width="440" height="320" rx="48" fill="#FFF6EC" stroke="#23242F" stroke-width="30"/>
+  <!-- flap V -->
+  <path d="M 64 134 L 256 296 L 448 134" fill="none" stroke="#23242F" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 64 134 L 256 296 L 448 134" fill="none" stroke="#6366F1" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- black ⌘ badge hanging off the bottom -->
+  <text x="256" y="498" font-family="-apple-system, 'SF Pro Display', 'Apple Symbols', sans-serif" font-size="230" font-weight="800" text-anchor="middle" paint-order="stroke" stroke="#FFFFFF" stroke-width="30" stroke-linejoin="round" fill="#23242F">&#8984;</text>
+</svg>

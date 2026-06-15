@@ -1,5 +1,5 @@
 // Namespaced globals shared across the content scripts.
-window.Mailpalette = window.Mailpalette || {};
+window.InboxKeys = window.InboxKeys || {};
 
 (function () {
   const DEFAULTS = {
@@ -72,6 +72,6 @@ window.Mailpalette = window.Mailpalette || {};
     },
   };
 
-  Mailpalette.storage = storage;
-  Mailpalette.DEFAULTS = DEFAULTS;
+  InboxKeys.storage = storage;
+  InboxKeys.DEFAULTS = DEFAULTS;
 })();

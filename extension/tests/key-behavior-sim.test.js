@@ -91,7 +91,7 @@ assert.match(
 
 assert.match(
   fs.readFileSync(path.join(root, "src/content/commands.js"), "utf8"),
-  /Mailpalette\.hotkeys\.armSearchEditing\(\)/,
+  /InboxKeys\.hotkeys\.armSearchEditing\(\)/,
   "The / search command should arm search typing before focusing Gmail search"
 );
 

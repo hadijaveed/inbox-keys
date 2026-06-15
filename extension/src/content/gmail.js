@@ -5,7 +5,7 @@
 //   2) Stable Gmail attributes ([gh="cm"] = compose, [gh="tm"] = toolbar).
 //   3) Toolbar buttons matched by data-tooltip / aria-label (English; localizable later).
 //   4) Native Gmail keyboard shortcuts as a fallback (requires shortcuts ON in Gmail).
-window.Mailpalette = window.Mailpalette || {};
+window.InboxKeys = window.InboxKeys || {};
 
 (function () {
   function accountIndex() {
@@ -24,11 +24,11 @@ window.Mailpalette = window.Mailpalette || {};
   // True when a single conversation is open (hash ends in a long thread id),
   // e.g. #inbox/FMfcgz... or #search/is:unread/FMfcgz... The id is the LAST hash
   // segment regardless of how many list/query/label segments precede it — see
-  // Mailpalette.hashutil.hashIsThread. (Earlier this assumed the id was the 2nd segment,
+  // InboxKeys.hashutil.hashIsThread. (Earlier this assumed the id was the 2nd segment,
   // which broke threads opened from search: shortcuts died until you cleared the
   // search box.)
   function inThread() {
-    return Mailpalette.hashutil.hashIsThread(location.hash || "");
+    return InboxKeys.hashutil.hashIsThread(location.hash || "");
   }
 
   // Visible-only query helper.
@@ -225,7 +225,7 @@ window.Mailpalette = window.Mailpalette || {};
   // silently.
   function clickOr(el, what) {
     if (realClick(el)) return true;
-    if (Mailpalette.toast) Mailpalette.toast(`Gmail control not found: ${what}`, { kind: "warn" });
+    if (InboxKeys.toast) InboxKeys.toast(`Gmail control not found: ${what}`, { kind: "warn" });
     return false;
   }
 
@@ -276,8 +276,8 @@ window.Mailpalette = window.Mailpalette || {};
     for (const p of prefixes) {
       if (clickByTooltip(p)) return true;
     }
-    if (Mailpalette.toast) {
-      Mailpalette.toast(`Gmail control not found: ${what || prefixes[0]}`, { kind: "warn" });
+    if (InboxKeys.toast) {
+      InboxKeys.toast(`Gmail control not found: ${what || prefixes[0]}`, { kind: "warn" });
     }
     return false;
   }
@@ -285,7 +285,7 @@ window.Mailpalette = window.Mailpalette || {};
   function undo() {
     const btn = findControl([/^Undo$/i]);
     if (btn) return realClick(btn);
-    if (Mailpalette.toast) Mailpalette.toast("Nothing to undo", { kind: "info" });
+    if (InboxKeys.toast) InboxKeys.toast("Nothing to undo", { kind: "info" });
     return false;
   }
 
@@ -324,7 +324,7 @@ window.Mailpalette = window.Mailpalette || {};
       if (btn) break;
     }
     if (btn) return realClick(btn);
-    if (Mailpalette.toast) Mailpalette.toast("No draft discard button found", { kind: "warn" });
+    if (InboxKeys.toast) InboxKeys.toast("No draft discard button found", { kind: "warn" });
     return false;
   }
 
@@ -335,7 +335,7 @@ window.Mailpalette = window.Mailpalette || {};
   function snooze() {
     const btn = findControl([/^Snooze\b/i, /^Remind me\b/i]);
     if (btn) return realClick(btn);
-    if (Mailpalette.toast) Mailpalette.toast("No snooze button found", { kind: "warn" });
+    if (InboxKeys.toast) InboxKeys.toast("No snooze button found", { kind: "warn" });
     return false;
   }
 
@@ -350,7 +350,7 @@ window.Mailpalette = window.Mailpalette || {};
   function unsubscribe() {
     const btn = findControl([/^Unsubscribe\b/i, /\bUnsubscribe\b/i]);
     if (!btn) {
-      if (Mailpalette.toast) Mailpalette.toast("No unsubscribe action found", { kind: "warn" });
+      if (InboxKeys.toast) InboxKeys.toast("No unsubscribe action found", { kind: "warn" });
       return false;
     }
     realClick(btn);
@@ -381,7 +381,7 @@ window.Mailpalette = window.Mailpalette || {};
       return /\b(attachment|download|open|preview)\b/i.test(label);
     });
     if (target) return realClick(target);
-    if (Mailpalette.toast) Mailpalette.toast("No link or attachment found", { kind: "warn" });
+    if (InboxKeys.toast) InboxKeys.toast("No link or attachment found", { kind: "warn" });
     return false;
   }
 
@@ -465,7 +465,7 @@ window.Mailpalette = window.Mailpalette || {};
   // keyboard events (isTrusted === false) for native navigation, so a fake "u"
   // silently does nothing. Hash routing is trusted and always works.
   function back() {
-    const parent = Mailpalette.hashutil.parentHash(location.hash || "");
+    const parent = InboxKeys.hashutil.parentHash(location.hash || "");
     const sels = [
       '[aria-label^="Back to"]',
       '[data-tooltip^="Back to"]',
@@ -505,8 +505,8 @@ window.Mailpalette = window.Mailpalette || {};
         exactButton("Reply", scope)
     );
     if (opened) focusReplyBodySoon();
-    else if (scope === document && Mailpalette.toast) {
-      Mailpalette.toast("Gmail control not found: Reply", { kind: "warn" });
+    else if (scope === document && InboxKeys.toast) {
+      InboxKeys.toast("Gmail control not found: Reply", { kind: "warn" });
     }
     return opened;
   }
@@ -735,15 +735,15 @@ window.Mailpalette = window.Mailpalette || {};
     });
     const failed = results.filter((r) => !r.ok);
     if (typeof console !== "undefined" && console.table) console.table(results);
-    if (Mailpalette.toast) {
+    if (InboxKeys.toast) {
       if (failed.length) {
-        Mailpalette.toast(
+        InboxKeys.toast(
           `Selector check: ${failed.length} FAILED — ${failed.map((r) => r.probe).join(", ")} (details in console)`,
           { kind: "warn", timeout: 6000 }
         );
       } else {
         const checked = results.filter((r) => r.applies).length;
-        Mailpalette.toast(`Selector check: all ${checked} probes OK on this ${surface} view`, { kind: "info" });
+        InboxKeys.toast(`Selector check: all ${checked} probes OK on this ${surface} view`, { kind: "info" });
       }
     }
     return { surface, results, failed };
@@ -753,7 +753,7 @@ window.Mailpalette = window.Mailpalette || {};
   // hotkey context gate so bindings only fire where they make sense.
   function getContext() {
     // 1) Palette open.
-    if (Mailpalette.palette && Mailpalette.palette.isOpen && Mailpalette.palette.isOpen()) return "paletteOpen";
+    if (InboxKeys.palette && InboxKeys.palette.isOpen && InboxKeys.palette.isOpen()) return "paletteOpen";
 
     const active = document.activeElement;
 
@@ -803,7 +803,7 @@ window.Mailpalette = window.Mailpalette || {};
     return "unknown";
   }
 
-  Mailpalette.gmail = {
+  InboxKeys.gmail = {
     SEL,
     firstVisible,
     verifySelectors,

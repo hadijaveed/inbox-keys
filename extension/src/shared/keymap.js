@@ -1,7 +1,7 @@
 // Shared keybinding catalog: the single source of truth for default keys, the
 // contexts each command fires in, and which bindings are "fixed" (engine
 // special-cases them; settings UI shows them read-only).
-// Plain data only — no chrome APIs, no window.Mailpalette dependency. Loaded as the
+// Plain data only — no chrome APIs, no window.InboxKeys dependency. Loaded as the
 // FIRST content script AND by options.html via <script src="../shared/keymap.js">.
 (function () {
   const DEFAULT_CONTEXTS = ["inboxList", "threadView", "unknown"];
@@ -103,5 +103,5 @@
       .join(" ");
   }
 
-  window.Mailpalette_KEYMAP = { DEFAULT_CONTEXTS, commands, keysFor, displayBinding, displayKeyPart, modLabel };
+  window.InboxKeys_KEYMAP = { DEFAULT_CONTEXTS, commands, keysFor, displayBinding, displayKeyPart, modLabel };
 })();

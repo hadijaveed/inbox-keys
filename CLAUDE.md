@@ -1,4 +1,4 @@
-# Mailpalette
+# Inbox Keys
 
 A Superhuman-style layer for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3). It adds a Cmd+K command palette, keyboard shortcuts and chords, split-inbox tabs, fast account switching, and a calendar key. No Gmail API, no server, no AI, no build step. The only permission requested is `storage` (plus `host_permissions` for `mail.google.com`). Everything works by driving Gmail's own UI from a content script.
 
@@ -19,7 +19,7 @@ Corollary for navigation: drive Gmail's hash router directly (`location.hash = "
 
 ## Architecture
 
-Chrome MV3. Content scripts share a single `window.Mailpalette` namespace and load in a fixed order (see `manifest.json` `content_scripts`):
+Chrome MV3. Content scripts share a single `window.InboxKeys` namespace and load in a fixed order (see `manifest.json` `content_scripts`):
 
 ```
 src/shared/hashutil.js    pure hash helpers (thread detection, parent hash). Unit-tested in Node.
@@ -46,7 +46,7 @@ src/background/           MV3 service worker (message relay).
 
 Where things live: keys and contexts are declared once in `keymap.js`; `commands.js` joins each catalog id to its `run()`. To add or change a binding you usually touch both. The palette is rebuilt every open so key overrides, tabs, and accounts stay current.
 
-Isolated world caveat: content scripts run in the ISOLATED world, so `window.Mailpalette` is invisible to page main-world JS. Browser-automation tools and the devtools console default to the main world and will see `Mailpalette` as undefined. DOM and `location.hash` inspection are world-independent, so verify live state through those. In Chrome devtools you can switch the console context to the extension content script to reach `Mailpalette`.
+Isolated world caveat: content scripts run in the ISOLATED world, so `window.InboxKeys` is invisible to page main-world JS. Browser-automation tools and the devtools console default to the main world and will see `InboxKeys` as undefined. DOM and `location.hash` inspection are world-independent, so verify live state through those. In Chrome devtools you can switch the console context to the extension content script to reach `InboxKeys`.
 
 ## The context classifier (gmail.getContext)
 
@@ -178,9 +178,9 @@ Most plumbing already exists in `tabs.js` (bar, hash navigation, active detectio
 
 In-Gmail: the palette command "Verify Gmail selectors (smoke check)" runs `gmail.verifySelectors()` over the selector registry and toasts what is missing on the current surface. Outside: `npm run smoke:gmail:readonly` (Playwright, see `SMOKE.md`) probes the same names against real Gmail with a logged-in test profile. Both catch Gmail-side DOM renames the jsdom fixtures cannot.
 
-### 3. Rename to Mailpalette (done)
+### 3. Rename to Inbox Keys (done)
 
-The product is Mailpalette everywhere (was Open Superhuman; before that the internal namespace was a `CMDK` carryover). Current state: namespace `window.Mailpalette`, keymap global `Mailpalette_KEYMAP`, CSS prefix `mailpalette-` (e.g. `mailpalette-tab`, `mailpalette-overlay`, `mailpalette-cursor`), runtime message types `mailpalette:...`, npm package `mailpalette`, manifest name "Mailpalette: Gmail command palette, hotkeys, split inbox & calendar". Done as one mechanical pass with `npm test` green. The repo directory is still `open-superhuman/` (renaming it is a user-side move; it breaks open editor sessions and remotes). The user-facing `Cmd+K` / `⌘K` shortcut text is the actual keystroke, not a brand name.
+The product is Inbox Keys everywhere (was Open Superhuman; before that the internal namespace was a `CMDK` carryover). Current state: namespace `window.InboxKeys`, keymap global `InboxKeys_KEYMAP`, CSS prefix `inboxkeys-` (e.g. `inboxkeys-tab`, `inboxkeys-overlay`, `inboxkeys-cursor`), runtime message types `inboxkeys:...`, npm package `inboxkeys`, manifest name "Inbox Keys: Gmail command palette, hotkeys, split inbox & calendar". Done as one mechanical pass with `npm test` green. The repo directory is still `open-superhuman/` (renaming it is a user-side move; it breaks open editor sessions and remotes). The user-facing `Cmd+K` / `⌘K` shortcut text is the actual keystroke, not a brand name.
 
 ## Conventions
 

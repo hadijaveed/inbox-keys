@@ -7,10 +7,10 @@
 // in the capture phase) so Gmail never double-handles it. We never dispatch
 // synthetic keyboard events ourselves — Gmail ignores them (isTrusted), so every
 // action drives a real control via gmail.realClick instead.
-window.Mailpalette = window.Mailpalette || {};
+window.InboxKeys = window.InboxKeys || {};
 
 (function () {
-  const { commands, palette, storage, gmail, calendar, listnav, threadnav } = Mailpalette;
+  const { commands, palette, storage, gmail, calendar, listnav, threadnav } = InboxKeys;
 
   let chordPrefix = null;
   let chordTimer = null;
@@ -145,8 +145,8 @@ window.Mailpalette = window.Mailpalette || {};
   }
 
   function commandHasKey(id, binding) {
-    if (!window.Mailpalette_KEYMAP || typeof Mailpalette_KEYMAP.keysFor !== "function") return true;
-    return Mailpalette_KEYMAP.keysFor(id, storage.get("keyOverrides") || {}).includes(binding);
+    if (!window.InboxKeys_KEYMAP || typeof InboxKeys_KEYMAP.keysFor !== "function") return true;
+    return InboxKeys_KEYMAP.keysFor(id, storage.get("keyOverrides") || {}).includes(binding);
   }
 
   // Calendar key: "0" toggles Gmail's side calendar panel; a quick "0 0" opens
@@ -178,7 +178,7 @@ window.Mailpalette = window.Mailpalette || {};
     if (chordPrefix === "g" && /^[0-8]$/.test(key)) {
       clearChord();
       consume(e);
-      Mailpalette.accounts.switchTo(parseInt(key, 10));
+      InboxKeys.accounts.switchTo(parseInt(key, 10));
       return true;
     }
 
@@ -305,8 +305,8 @@ window.Mailpalette = window.Mailpalette || {};
     ) {
       consume(e);
       searchEditing = false;
-      if (e.shiftKey) Mailpalette.tabs.prev();
-      else Mailpalette.tabs.next();
+      if (e.shiftKey) InboxKeys.tabs.prev();
+      else InboxKeys.tabs.next();
       return;
     }
 
@@ -328,8 +328,8 @@ window.Mailpalette = window.Mailpalette || {};
     ) {
       consume(e);
       searchEditing = false;
-      if (e.key === "N" || e.key === "n") Mailpalette.listnav.page(1);
-      else Mailpalette.listnav.page(-1);
+      if (e.key === "N" || e.key === "n") InboxKeys.listnav.page(1);
+      else InboxKeys.listnav.page(-1);
       return;
     }
 
@@ -467,5 +467,5 @@ window.Mailpalette = window.Mailpalette || {};
     searchEditing = true;
   }
 
-  Mailpalette.hotkeys = { install, armSearchEditing };
+  InboxKeys.hotkeys = { install, armSearchEditing };
 })();
