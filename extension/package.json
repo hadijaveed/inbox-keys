@@ -1,10 +1,10 @@
 {
   "name": "inboxkeys",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Inbox Keys: Gmail command palette, hotkeys, split inbox & calendar (Chrome MV3 extension).",
   "scripts": {
-    "test": "node tests/hashutil.test.js && node tests/getcontext.test.js && node tests/storage.test.js && node tests/hotkeys.test.js && node tests/tabs-config.test.js && node tests/key-behavior-sim.test.js",
+    "test": "node tests/hashutil.test.js && node tests/getcontext.test.js && node tests/storage.test.js && node tests/hotkeys.test.js && node tests/tabs-config.test.js && node tests/gcal.test.js && node tests/gcal-ui.test.js && node tests/key-behavior-sim.test.js",
     "smoke:install": "npm install --save-dev playwright && npx playwright install chromium",
     "smoke:gmail:setup": "node smoke/gmail-readonly-smoke.js setup",
     "smoke:gmail:readonly": "node smoke/gmail-readonly-smoke.js readonly",

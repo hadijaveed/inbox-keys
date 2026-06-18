@@ -110,14 +110,17 @@
   color: #94a3b8;
 }
 
-/* Dark mode follows Gmail's dark theme heuristically. */
+/* Dark mode: neutral charcoal, shared with the Google Calendar layer overlay. */
 @media (prefers-color-scheme: dark) {
-  .inboxkeys-modal { background: #1e293b; color: #e2e8f0; }
-  .inboxkeys-input-row, .inboxkeys-footer { border-color: #334155; }
-  .inboxkeys-input, .inboxkeys-row-title { color: #e2e8f0; }
-  .inboxkeys-row--active { background: #312e81; }
-  .inboxkeys-row kbd, .inboxkeys-footer kbd { background: #0f172a; color: #cbd5e1; border-color: #334155; }
-  .inboxkeys-prompt { background: #312e81; color: #c7d2fe; }
+  .inboxkeys-modal { background: #1f1f24; color: #f2f2f4; }
+  .inboxkeys-input-row, .inboxkeys-footer { border-color: #34343d; }
+  .inboxkeys-input, .inboxkeys-row-title { color: #f2f2f4; }
+  .inboxkeys-group, .inboxkeys-hint, .inboxkeys-input::placeholder { color: #a6a6ad; }
+  .inboxkeys-sub { color: #a6a6ad; }
+  .inboxkeys-row--active { background: #3a3a45; }
+  .inboxkeys-row kbd, .inboxkeys-footer kbd { background: #17171b; color: #cfcfd6; border-color: #34343d; }
+  .inboxkeys-badge { background: #2a2a31; color: #a6a6ad; }
+  .inboxkeys-prompt { background: #7c7ff6; color: #fff; }
 }
 
 /* Toasts */
@@ -135,7 +138,7 @@
 }
 .inboxkeys-toast {
   pointer-events: auto;
-  background: #0f172a;
+  background: #1f1f24;
   color: #fff;
   padding: 10px 16px;
   border-radius: 10px;
@@ -542,39 +545,39 @@
 .inboxkeys-btn--ghost:hover { background: #f1f5f9; }
 
 @media (prefers-color-scheme: dark) {
-  .inboxkeys-cfg-head, .inboxkeys-cfg-tabs, .inboxkeys-cfg-foot { border-color: #334155; }
-  .inboxkeys-cfg-sub { color: #94a3b8; }
-  .inboxkeys-cfg-sub code, .inboxkeys-cfg-hint code, .inboxkeys-cfg-x { background: #0f172a; color: #cbd5e1; }
-  .inboxkeys-cfg-tab { color: #94a3b8; }
-  .inboxkeys-cfg-tab:hover { background: #0f172a; color: #e2e8f0; }
-  .inboxkeys-cfg-tab--active { background: #312e81; color: #c7d2fe; }
-  .inboxkeys-cfg-tab--active::after { background: #8b5cf6; }
-  .inboxkeys-cfg-panel { background: #111827; border-color: #334155; }
-  .inboxkeys-cfg-section-head, .inboxkeys-shortcut-tools { border-color: #334155; }
-  .inboxkeys-cfg-section-title, .inboxkeys-shortcut-title { color: #e2e8f0; }
-  .inboxkeys-cfg-section-sub { color: #94a3b8; }
-  .inboxkeys-cfg-row input { background: #0f172a; color: #e2e8f0; border-color: #334155; }
-  .inboxkeys-cfg-row--pulse input { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18); }
-  .inboxkeys-cfg-row input:disabled { background: #1e293b; color: #64748b; }
-  .inboxkeys-cfg-reset:hover { background: #0f172a; color: #cbd5e1; }
-  .inboxkeys-cfg-suggest-title { color: #94a3b8; }
-  .inboxkeys-cfg-chip { background: #0f172a; border-color: #334155; color: #cbd5e1; }
-  .inboxkeys-cfg-chip:hover { background: #312e81; color: #c7d2fe; }
-  .inboxkeys-cfg-chip-note { color: #64748b; }
-  .inboxkeys-cfg-chip--added, .inboxkeys-cfg-chip--added:hover { background: #111827; border-color: #1f2937; color: #64748b; }
-  .inboxkeys-shortcut-reset-all { background: #0f172a; color: #94a3b8; }
-  .inboxkeys-shortcut-reset-all:hover { background: #312e81; color: #c7d2fe; }
-  .inboxkeys-shortcut-tools { background: #111827; }
-  .inboxkeys-shortcut-search-icon { color: #64748b; }
-  .inboxkeys-shortcut-search { background: #0f172a; color: #e2e8f0; border-color: #334155; }
-  .inboxkeys-shortcut-group { background: #111827; }
-  .inboxkeys-shortcut-row:hover { background: #0f172a; }
-  .inboxkeys-shortcut-row--recording { background: #312e81; box-shadow: inset 3px 0 0 #8b5cf6; }
-  .inboxkeys-shortcut-keys:not(:disabled):hover { background: #312e81; border-color: #4338ca; }
-  .inboxkeys-shortcut-keys kbd { background: #0f172a; color: #cbd5e1; border-color: #334155; }
-  .inboxkeys-shortcut-reset:hover:not(:disabled) { background: #312e81; color: #c7d2fe; }
-  .inboxkeys-btn--ghost { color: #94a3b8; }
-  .inboxkeys-btn--ghost:hover { background: #0f172a; }
+  .inboxkeys-cfg-head, .inboxkeys-cfg-tabs, .inboxkeys-cfg-foot { border-color: #34343d; }
+  .inboxkeys-cfg-sub { color: #a6a6ad; }
+  .inboxkeys-cfg-sub code, .inboxkeys-cfg-hint code, .inboxkeys-cfg-x { background: #17171b; color: #cfcfd6; }
+  .inboxkeys-cfg-tab { color: #a6a6ad; }
+  .inboxkeys-cfg-tab:hover { background: #2a2a31; color: #f2f2f4; }
+  .inboxkeys-cfg-tab--active { background: #3a3a45; color: #f2f2f4; }
+  .inboxkeys-cfg-tab--active::after { background: #7c7ff6; }
+  .inboxkeys-cfg-panel { background: #1f1f24; border-color: #34343d; }
+  .inboxkeys-cfg-section-head, .inboxkeys-shortcut-tools { border-color: #34343d; }
+  .inboxkeys-cfg-section-title, .inboxkeys-shortcut-title { color: #f2f2f4; }
+  .inboxkeys-cfg-section-sub { color: #a6a6ad; }
+  .inboxkeys-cfg-row input { background: #17171b; color: #f2f2f4; border-color: #34343d; }
+  .inboxkeys-cfg-row--pulse input { border-color: #7c7ff6; box-shadow: 0 0 0 3px rgba(124, 127, 246, 0.18); }
+  .inboxkeys-cfg-row input:disabled { background: #2a2a31; color: #8a8a92; }
+  .inboxkeys-cfg-reset:hover { background: #17171b; color: #cfcfd6; }
+  .inboxkeys-cfg-suggest-title { color: #a6a6ad; }
+  .inboxkeys-cfg-chip { background: #17171b; border-color: #34343d; color: #cfcfd6; }
+  .inboxkeys-cfg-chip:hover { background: #3a3a45; color: #f2f2f4; }
+  .inboxkeys-cfg-chip-note { color: #8a8a92; }
+  .inboxkeys-cfg-chip--added, .inboxkeys-cfg-chip--added:hover { background: #1f1f24; border-color: #2a2a31; color: #8a8a92; }
+  .inboxkeys-shortcut-reset-all { background: #17171b; color: #a6a6ad; }
+  .inboxkeys-shortcut-reset-all:hover { background: #3a3a45; color: #f2f2f4; }
+  .inboxkeys-shortcut-tools { background: #1f1f24; }
+  .inboxkeys-shortcut-search-icon { color: #8a8a92; }
+  .inboxkeys-shortcut-search { background: #17171b; color: #f2f2f4; border-color: #34343d; }
+  .inboxkeys-shortcut-group { background: #1f1f24; }
+  .inboxkeys-shortcut-row:hover { background: #17171b; }
+  .inboxkeys-shortcut-row--recording { background: #3a3a45; box-shadow: inset 3px 0 0 #7c7ff6; }
+  .inboxkeys-shortcut-keys:not(:disabled):hover { background: #3a3a45; border-color: #4a4a55; }
+  .inboxkeys-shortcut-keys kbd { background: #17171b; color: #cfcfd6; border-color: #34343d; }
+  .inboxkeys-shortcut-reset:hover:not(:disabled) { background: #3a3a45; color: #f2f2f4; }
+  .inboxkeys-btn--ghost { color: #a6a6ad; }
+  .inboxkeys-btn--ghost:hover { background: #17171b; }
 }
 
 @media (max-width: 760px) {
@@ -623,7 +626,7 @@
   border-radius: 6px; padding: 7px 8px; text-align: center; white-space: nowrap;
 }
 @media (prefers-color-scheme: dark) {
-  .inboxkeys-cfg-acct-key { color: #c7d2fe; background: #312e81; border-color: #4338ca; }
+  .inboxkeys-cfg-acct-key { color: #cfcfd6; background: #2a2a31; border-color: #4a4a55; }
 }
 
 /* Keyboard cursor over the thread list (our own, since Gmail ignores synthetic

@@ -12,7 +12,7 @@ Superhuman-speed Gmail, without giving anyone your email.
 
 Inbox Keys is a **Cmd+K command palette**, **keyboard shortcuts**, **split-inbox tabs**, **fast account switching**, and a **calendar key** for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3).
 
-> **The privacy stance is the whole point.** No Gmail API. No server. No AI. No analytics. No build step. The only permission is `storage` (your settings, kept locally). Everything works by driving Gmail's own UI from a content script, so Inbox Keys never reads, sends, or stores your mail.
+> **The privacy stance is the whole point.** No Gmail API. No server. No AI. No analytics. No build step. The only permission is `storage` (your settings, kept locally), plus host access to Gmail and Google Calendar so the content scripts can run there. Everything works by driving Google's own UI, so Inbox Keys never reads, sends, or stores your mail or calendar events.
 
 ## Features
 
@@ -24,6 +24,7 @@ Inbox Keys is a **Cmd+K command palette**, **keyboard shortcuts**, **split-inbox
 - **Thread navigation**: `j`/`k` between conversations, arrows across message cards, `o` expand/collapse, `:` expand all, `Enter` reply-all, `Escape` exits a reply first, then returns to the list with your cursor and scroll position restored.
 - **Account switching**: `g 0` through `g 8` jump straight to `/mail/u/N/`. The palette lists accounts by email as it learns them.
 - **Calendar key**: `0` opens Google Calendar beside Gmail, `0 0` opens it in a new tab, always for the account you are in.
+- **Unified calendar layer**: on Google Calendar, `Cmd/Ctrl+K` opens a layer palette to toggle or focus any calendar, switch accounts, and add more sources, plus single keys (`c` create, `t` today, `j`/`k` next/previous, `d`/`w`/`m` day/week/month) and a persistent nudge to keep adding accounts and Outlook/iCal feeds into one view. Adding an Outlook feed shows the exact publish steps. The merge is Google's own (calendar sharing and iCal subscription); Inbox Keys just drives the UI and reads no event data.
 
 ## Install
 

@@ -184,7 +184,7 @@ window.InboxKeys = window.InboxKeys || {};
     const row = cursorRow();
     if (!row) return;
     const target = row.querySelector('.xS, .bog, span[data-thread-id], [role="link"]') || row;
-    pendingReturnState = captureReturnState(location.hash || "#inbox");
+    pendingReturnState = captureReturnState(location.hash || "#inbox", row);
     gmail.realClick(target);
     setTimeout(() => {
       if (pendingReturnState && !InboxKeys.hashutil.hashIsThread(location.hash || "")) {
@@ -498,19 +498,42 @@ window.InboxKeys = window.InboxKeys || {};
   let pendingReturnState = null;
   let lastHash = location.hash;
 
-  function captureReturnState(parent) {
+  // The opened conversation's id, read straight off its list row. Used to re-find
+  // the same row on return even if the list shifted (new mail) while we were in
+  // the thread; falls back to the saved index when absent.
+  function threadIdOf(row) {
+    if (!row) return null;
+    const el = row.querySelector("[data-thread-id]");
+    return (el && el.getAttribute("data-thread-id")) || row.getAttribute("data-legacy-thread-id") || null;
+  }
+
+  function captureReturnState(parent, row) {
     const sc = gmail.listScrollContainer();
-    return { parent, cursor, scrollTop: sc ? sc.scrollTop : 0 };
+    const anchorRow = row || (cursor >= 0 ? rows()[cursor] : null);
+    return { parent, cursor, threadId: threadIdOf(anchorRow), scrollTop: sc ? sc.scrollTop : 0 };
   }
 
   function restoreReturn(want) {
-    const seqAtRestore = evSeq;
+    // Re-pin only until the user takes over with the KEYBOARD (j/k, Shift+arrow,
+    // g/G). This used to guard on evSeq, but the passive mouseover handler also
+    // bumps evSeq — and Gmail fires mouseover on the rows it re-renders under a
+    // still pointer the moment you return, so the guard tripped on its own and
+    // every re-pin below bailed, letting Gmail's scroll-to-top win (the reported
+    // "cursor/scroll jumps somewhere else"). keyNavSeq advances only on real
+    // keyboard navigation, so a re-render mouseover no longer aborts the restore.
+    const seqAtRestore = keyNavSeq;
     const apply = () => {
-      // The user already moved on (j/k or hover): stop re-pinning under them.
-      if (evSeq !== seqAtRestore) return;
+      if (keyNavSeq !== seqAtRestore) return;
       const r = rows();
       if (!r.length) return;
-      cursor = want.cursor >= 0 ? Math.min(want.cursor, r.length - 1) : -1;
+      // Prefer the row we actually opened (matched by thread id); fall back to
+      // the saved index if Gmail dropped the id or the row is gone.
+      let idx = want.cursor;
+      if (want.threadId) {
+        const found = r.findIndex((row) => threadIdOf(row) === want.threadId);
+        if (found >= 0) idx = found;
+      }
+      cursor = idx >= 0 ? Math.min(idx, r.length - 1) : -1;
       // Paint by hand (no scrollIntoView) so the cursor highlight can't fight
       // the scroll restore below.
       r.forEach((row, i) => row.classList.toggle(CURSOR_CLASS, i === cursor));

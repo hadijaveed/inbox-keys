@@ -190,4 +190,16 @@ assert.match(
   "isEditable must guard against non-Element keydown targets (document/window)"
 );
 
+// On return from a thread, restoreReturn re-pins cursor + scroll on timers to
+// outlast Gmail's re-render-to-top. That re-pin must be cancelled only by real
+// keyboard navigation (keyNavSeq), NEVER by evSeq: the passive mouseover handler
+// bumps evSeq when Gmail re-renders rows under a still pointer, which silently
+// aborted the re-pins and snapped focus/scroll to the top (the focus-loss bug).
+const listnavSource = fs.readFileSync(path.join(root, "src/content/listnav.js"), "utf8");
+assert.match(
+  listnavSource,
+  /const seqAtRestore = keyNavSeq;[\s\S]*?if \(keyNavSeq !== seqAtRestore\) return;/,
+  "restoreReturn must guard its re-pin on keyNavSeq (keyboard), not evSeq (which mouseover bumps)"
+);
+
 console.log("key behavior simulations passed");

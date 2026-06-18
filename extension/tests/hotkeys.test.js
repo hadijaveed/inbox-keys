@@ -539,6 +539,91 @@ function wireList(w) {
   assert.equal(rows(w)[1].classList.contains("inboxkeys-cursor"), true, "j continues from the restored cursor (already on the last row)");
 }
 
+// The restore is re-pinned on timers (120/320/600ms) because Gmail keeps
+// re-rendering the returned list and snaps the scroll back to the top a beat
+// later. Those re-pins must survive a PASSIVE mouseover: when the list rebuilds
+// under a still mouse pointer, Gmail fires mouseover on the new rows, which must
+// NOT be read as "the user moved on" and abort the re-pin. (Regression: the
+// guard used evSeq, which mouseover bumps, so the re-pins silently bailed and
+// the cursor/scroll jumped to the top — the reported focus-loss bug.)
+{
+  const w = load(listFixture(), "#inbox");
+  wireList(w);
+  w.dispatchEvent(new w.Event("hashchange"));
+  const main = w.document.querySelector('[role="main"]');
+  main.style.overflowY = "scroll";
+  Object.defineProperty(main, "scrollHeight", { value: 5000, configurable: true });
+  Object.defineProperty(main, "clientHeight", { value: 500, configurable: true });
+
+  press(w, "j", { target: w.document.body });
+  main.scrollTop = 1234;
+  w.location.hash = "#inbox/" + ID;
+  w.dispatchEvent(new w.Event("hashchange"));
+  const msg = w.document.createElement("div");
+  msg.setAttribute("data-message-id", "m1");
+  main.appendChild(msg);
+
+  press(w, "Escape", { target: w.document.body });
+  assert.equal(w.location.hash, "#inbox", "Escape returns to the parent list");
+  msg.remove();
+
+  // Capture the re-pin timers so we can fire them after simulating Gmail's churn.
+  const repins = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn, ms) => { repins.push(fn); return 0; };
+
+  main.scrollTop = 0; // Gmail's first re-render snaps to the top
+  w.dispatchEvent(new w.Event("hashchange")); // synchronous apply restores once
+  assert.equal(main.scrollTop, 1234, "the immediate restore lands the scroll");
+
+  // Gmail re-renders again and snaps to the top; the pointer is resting over the
+  // list, so a mouseover fires on a rebuilt row WITHOUT the user touching anything.
+  main.scrollTop = 0;
+  rows(w)[0].dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
+
+  // Fire the queued re-pins. They must re-apply despite the passive mouseover.
+  repins.forEach((fn) => fn());
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(main.scrollTop, 1234, "a passive mouseover must not abort the re-pin (scroll stays restored)");
+  assert.equal(rows(w)[1].classList.contains("inboxkeys-cursor"), true, "the cursor row survives the passive mouseover");
+}
+
+// The flip side: a real keyboard move during the restore window DOES take over,
+// so the re-pins stop fighting the user instead of yanking them back.
+{
+  const w = load(listFixture(), "#inbox");
+  wireList(w);
+  w.dispatchEvent(new w.Event("hashchange"));
+  const main = w.document.querySelector('[role="main"]');
+  main.style.overflowY = "scroll";
+  Object.defineProperty(main, "scrollHeight", { value: 5000, configurable: true });
+  Object.defineProperty(main, "clientHeight", { value: 500, configurable: true });
+
+  press(w, "j", { target: w.document.body });
+  main.scrollTop = 1234;
+  w.location.hash = "#inbox/" + ID;
+  w.dispatchEvent(new w.Event("hashchange"));
+  const msg = w.document.createElement("div");
+  msg.setAttribute("data-message-id", "m1");
+  main.appendChild(msg);
+  press(w, "Escape", { target: w.document.body });
+  msg.remove();
+
+  const repins = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn, ms) => { repins.push(fn); return 0; };
+  w.dispatchEvent(new w.Event("hashchange"));
+
+  // User keeps navigating with the keyboard, then scrolls away.
+  press(w, "k", { target: w.document.body });
+  main.scrollTop = 4321;
+  repins.forEach((fn) => fn());
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(main.scrollTop, 4321, "a keyboard move cancels the re-pin so it doesn't yank the user back");
+}
+
 // Real Gmail can rebuild the list before the thread hashchange handler can read
 // the old scroll position. The Enter handler must snapshot the list before
 // clicking the row, otherwise Escape restores the already-reset top position.

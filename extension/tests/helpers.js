@@ -70,6 +70,28 @@ function tryLoad(bodyHtml) {
   return window;
 }
 
+// Loads just the calendar driver (gcal.js) into a jsdom window for the
+// calendar-surface tests. gcal only needs the window plus an optional toast.
+function tryLoadGcal(bodyHtml) {
+  const window = makeWindow(bodyHtml);
+  if (!window) return null;
+  window.InboxKeys = window.InboxKeys || {};
+  window.__toasts = [];
+  window.InboxKeys.toast = (msg, opts) => window.__toasts.push({ msg: String(msg), opts });
+  loadScripts(window, ["src/content/gcal.js"]);
+  return window;
+}
+
+// Loads the calendar driver + the in-calendar UI layer (command model + nudge).
+function tryLoadGcalUi(bodyHtml) {
+  const window = makeWindow(bodyHtml);
+  if (!window) return null;
+  window.__toasts = [];
+  loadScripts(window, ["src/content/storage.js", "src/content/toast.js", "src/content/gcal.js", "src/content/gcal-ui.js"]);
+  window.InboxKeys.toast = (msg, opts) => window.__toasts.push({ msg: String(msg), opts });
+  return window;
+}
+
 function tryLoadContentScripts(bodyHtml) {
   const window = makeWindow(bodyHtml);
   if (!window) return null;
@@ -91,4 +113,4 @@ function tryLoadContentScripts(bodyHtml) {
   return window;
 }
 
-module.exports = { tryLoad, tryLoadContentScripts };
+module.exports = { tryLoad, tryLoadContentScripts, tryLoadGcal, tryLoadGcalUi };
