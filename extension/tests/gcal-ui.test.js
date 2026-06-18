@@ -93,7 +93,7 @@ function railFixture() {
 {
   const w = tryLoadGcalUi(railFixture());
   const cmds = Array.from(w.InboxKeys.gcalui.calendarCommands());
-  const keys = { today: "t", "view-day": "d", "view-week": "w", "view-month": "m", create: "c" };
+  const keys = { today: "t", prev: "←", next: "→", "view-day": "d", "view-week": "w", "view-month": "m", create: "c" };
   for (const [id, key] of Object.entries(keys)) {
     const c = cmds.find((x) => x.id === id);
     assert.ok(c && c.kind === "nav", `the overlay offers the ${id} command`);
@@ -102,14 +102,21 @@ function railFixture() {
   // The keys are actually rendered in the overlay rows.
   w.InboxKeys.gcalui.openOverlay();
   const shown = Array.from(w.document.querySelectorAll(".inboxkeys-gcal-kbd")).map((k) => k.textContent);
-  assert.ok(shown.includes("t") && shown.includes("c") && shown.includes("m"), "shortcut keys are visible in the overlay");
+  assert.ok(
+    shown.includes("t") && shown.includes("c") && shown.includes("←") && shown.includes("→"),
+    "shortcut keys (including the back/forward arrows) are visible in the overlay"
+  );
 }
 
 // 7. The single-key engine: a bare key drives the matching control and is
 //    consumed (so Calendar never double-handles it); modifiers and typing are
 //    left alone.
 {
-  const w = tryLoadGcalUi(`<button aria-label="Today, Friday June 19">Today</button>` + railFixture());
+  const w = tryLoadGcalUi(
+    `<button aria-label="Today, Friday June 19">Today</button>
+     <button aria-label="Previous week"></button>
+     <button aria-label="Next week"></button>` + railFixture()
+  );
   const d = w.document;
   let clicked = false;
   d.querySelector('[aria-label^="Today"]').addEventListener("click", () => (clicked = true));
@@ -150,6 +157,18 @@ function railFixture() {
   clicked = false;
   onKeydown(ev({ key: "t", defaultPrevented: true }));
   assert.equal(clicked, false, "defers when Calendar already handled the key (its shortcuts are on), avoiding double-action");
+
+  // Left/Right arrows drive previous/next period via the real nav buttons.
+  let moved = null;
+  d.querySelector('[aria-label="Next week"]').addEventListener("click", () => (moved = "next"));
+  d.querySelector('[aria-label="Previous week"]').addEventListener("click", () => (moved = "prev"));
+  const eRight = ev({ key: "ArrowRight" });
+  onKeydown(eRight);
+  assert.equal(moved, "next", "Right arrow advances to the next period");
+  assert.equal(eRight._pd === true && eRight._sip === true, true, "the arrow key is consumed");
+  moved = null;
+  onKeydown(ev({ key: "ArrowLeft" }));
+  assert.equal(moved, "prev", "Left arrow goes to the previous period");
 }
 
 // 8. Escape closes our overlay from the document-level capture handler (the

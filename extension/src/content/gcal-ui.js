@@ -63,6 +63,8 @@ window.InboxKeys = window.InboxKeys || {};
       cmds.push({ id: "focus:" + c.name, title: "Focus only " + c.name, kind: "layer", run: () => gcal.focusOnly(c.name) });
     }
     cmds.push({ id: "today", title: "Go to today", kind: "nav", key: "t", run: () => gcal.today() });
+    cmds.push({ id: "prev", title: "Go back (previous)", kind: "nav", key: "←", run: () => gcal.period(-1) });
+    cmds.push({ id: "next", title: "Go forward (next)", kind: "nav", key: "→", run: () => gcal.period(1) });
     cmds.push({ id: "view-day", title: "Go to day view", kind: "nav", key: "d", run: () => gcal.view("Day") });
     cmds.push({ id: "view-week", title: "Go to week view", kind: "nav", key: "w", run: () => gcal.view("Week") });
     cmds.push({ id: "view-month", title: "Go to month view", kind: "nav", key: "m", run: () => gcal.view("Month") });
@@ -444,6 +446,10 @@ window.InboxKeys = window.InboxKeys || {};
   const KEY_ACTIONS = {
     c: () => gcal.createEvent(),
     t: () => gcal.today(),
+    // Left/Right arrows move back/forward a period, mirroring the on-screen
+    // ‹ › buttons; the vertical arrows are left alone so scrolling still works.
+    arrowleft: () => gcal.period(-1),
+    arrowright: () => gcal.period(1),
     j: () => gcal.period(1),
     k: () => gcal.period(-1),
     d: () => gcal.view("Day"),
