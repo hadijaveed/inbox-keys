@@ -2,7 +2,7 @@
 
 A Superhuman-style layer for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3). It adds a Cmd+K command palette, keyboard shortcuts and chords, split-inbox tabs, fast account switching, a calendar key, and a unified-calendar layer on Google Calendar. No Gmail API, no server, no AI, no build step. The only permission requested is `storage` (plus `host_permissions` for `mail.google.com` and `calendar.google.com`). Everything works by driving Gmail's and Google Calendar's own UI from content scripts.
 
-Current version: 0.5.0. Tests: 8 suites, all green (`cd extension && npm test`).
+Current version: 0.6.0. Tests: 8 suites, all green (`cd extension && npm test`).
 
 This file is the working guide for agents. `HANDOFF.md` has the longer narrative and the bug history; `README.md` is the user-facing overview. Read this before changing behavior.
 
@@ -44,8 +44,9 @@ src/content/gcal.js       CALENDAR driver (loads only on calendar.google.com). O
                           dropdown fallback), period, accountEmail/accountIndex/switchAccount,
                           verifySelectors.
 src/content/gcal-ui.js    in-calendar layer UI: Cmd+K overlay (toggle/focus layers, switch
-                          account, add sources, mirror create/today/views) + curated single
-                          keys (c/t/j/k/d/w/m) + persistent "keep adding accounts/feeds" nudge.
+                          account, two add flows — Google sharing guide + Outlook/iCal
+                          paste — mirror create/today/views) + curated single keys
+                          (c/t/j/k/d/w/m, ←/→) + persistent "keep adding" nudge.
 src/content/palette.css   scoped styles (palette, toasts, tab bar, config modal).
 src/popup/                toolbar popup (quick toggles + configure tabs).
 src/options/              settings page (toggles, per-command key remap UI, accounts, cheat sheet).
@@ -132,7 +133,7 @@ The merge itself is Google's own feature: cross-account calendars layer in via G
 
 Keyboard model: two surfaces, both in `gcal-ui.js`.
 
-- Cmd+K overlay owns what Calendar has NO shortcut for: it lists add-a-source actions first (so "keep adding" is always on top), then "go to" account switches (`switchAccount(N)` to `/calendar/u/N/r`, labelled by email from the shared `accountNames` store), then per-calendar toggle/focus, show-all, and mirrored nav (today / day / week / month / create) so those work from the palette even with Calendar's own keys off. Adding an Outlook/iCal feed is fully automated and shows numbered Outlook publish steps; adding another Google account opens Calendar's own add menu plus guidance, since sharing must be granted from the other account.
+- Cmd+K overlay owns what Calendar has NO shortcut for: it leads with the two "add a source" actions (so "keep adding" is always on top), then "go to" account switches (`switchAccount(N)` to `/calendar/u/N/r`, labelled by email from the shared `accountNames` store), then per-calendar toggle/focus, show-all, and mirrored nav (today / day / week / month / create) so those work from the palette even with Calendar's own keys off. The two add flows are deliberately asymmetric and kept SIMPLE: (1) `addGoogle` opens Google's OWN "Subscribe to calendar" pane in a NEW tab (`window.open(gcal.addCalendarUrl(), "_blank")` — addCalendarUrl is `/calendar/u/N/r/settings/addcalendar` for the current account, verified live to land directly on the `input[aria-label="Add calendar"]` box), and keeps THIS tab open with a PERSISTENT education panel (`showGuide({persist:true})`): add the email there, get the permission email, then come back and press the panel's "Refresh now" button (`location.reload()`). We do NOT steer Google's box/autocomplete/dialogs ourselves — earlier attempts (a self-driven `subscribeByEmail` that drove `role=option` ▸ "Request access"; a "paste a link" panel using Google's secret iCal address that did NOT merge Google→Google) were unreliable and are gone. (2) `promptIcs` (`openInput`) takes an Outlook/iCal `.ics` link and runs `gcal.addByUrl` (the `+` menu ▸ "From URL" ▸ the addbyurl URL field ▸ "Add calendar"); refreshes every few hours. The `persist` flag on `showGuide` skips `bindAutoClose` — REQUIRED here because opening a new tab blurs this one, and without it the focus-out auto-close would kill the education panel. Password-manager guard: every text box we create (palette search and the Outlook URL field) is run through `hardenField`, which sets `autocomplete=off` plus `data-1p-ignore` / `data-lpignore` / `data-bwignore` / `data-form-type=other` so 1Password/LastPass/etc. stop popping an autofill menu over the palette (the field looked like a login). Keep `hardenField` on any new input.
 - Curated single keys `← → c t j k d w m` (←/→ = back/forward a period mirroring the on-screen ‹ › buttons, c create, t today, j/k also prev/next, d/w/m day/week/month). Only the horizontal arrows are bound; the vertical arrows are left to scrolling. Unlike the Gmail side we DO bind these, but we capture them (capture-phase) and `consume` (preventDefault + stopImmediatePropagation), then drive Calendar's real control via `realClick`. So the action fires exactly once and is identical whether or not Calendar's native shortcuts are enabled, with no double-advance (a `defaultPrevented` check defers when Calendar's own shortcuts already handled the key). Suppressed while typing (`isTyping`), while our overlay/input owns the keyboard, and for any modified/Shift chord. The palette mirrors these as "Go back (previous)" ← and "Go forward (next)" → plus the view/today/create rows, each showing its key. Keys Calendar has but we leave to it (n/p/y/a/g/x/r/s and `1`-`9`) are simply not in our map, so Calendar handles them natively.
 
 `createEvent` clicks the main Create split-button, identified by its "Create" text ligature and the absence of an aria-label, explicitly excluding the "Create appointment schedule" lookalike. `view(label)` drives the view-switcher dropdown (there is NO segmented radio on current Calendar): it locates the `aria-haspopup="menu"` button whose label starts with a view name, opens it, and clicks the menu item whose text starts with the label. `period(dir)` matches `"Next/Previous " + view unit` and clicks the topmost (the mini-calendar renders a duplicate month-nav lower down).
@@ -148,6 +149,9 @@ Verified live selectors (Google Calendar, June 2026 — mirrored in `tests/gcal.
 menuitem "From URL"                                            iCal subscribe (also: Subscribe to calendar, Import)
 /calendar/u/N/r/settings/addbyurl                              the add-by-URL form route (SPA, no reload)
   └ the lone text input on the pane (NOT aria-label "Search for people") + button "Add calendar"
+/calendar/u/N/r/settings/addcalendar                           the Subscribe-to-calendar pane; opening this URL
+                                                               in a new tab lands on input[aria-label="Add calendar"]
+                                                               (the email box) — addGoogle window.opens it
 view switcher: button[aria-haspopup="menu"], label starts with view  ("Weekarrow_drop_down")
   └ menu items role="menuitem", text "<View><shortcut>" e.g. "MonthM"  matched by prefix
 period nav: button[aria-label^="Next "|"Previous "] + view unit  ("Next week"/"Next month"…)

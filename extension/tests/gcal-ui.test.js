@@ -26,8 +26,8 @@ function railFixture() {
 {
   const w = tryLoadGcalUi(railFixture());
   const cmds = Array.from(w.InboxKeys.gcalui.calendarCommands());
-  assert.equal(cmds[0].id, "add-ics", "the iCal/Outlook add is the very first action");
-  assert.equal(cmds[1].id, "add-google", "adding another Google account is the second action");
+  assert.equal(cmds[0].id, "add-google", "seeing another Google account is the very first action");
+  assert.equal(cmds[1].id, "add-ics", "adding an Outlook/iCal calendar is the second action");
   assert.equal(cmds[0].kind, "add", "add actions are tagged so the UI can badge them");
 }
 
@@ -197,21 +197,64 @@ function railFixture() {
   assert.equal(e._pd === true && e._sip === true, true, "Escape is consumed so Calendar does not also act on it");
 }
 
-// 9. "Add another Google account" opens a guided, numbered sharing walkthrough
-//    (prefilled with this account's email) rather than a one-click add, because
-//    cross-account merge is a real Google share flow.
+// 9. "Add a Gmail or Google calendar" opens Google's subscribe pane in a NEW tab
+//    (its addcalendar URL) and keeps THIS tab open with a persistent education
+//    panel (numbered steps + a Refresh button). No input of ours, so nothing for
+//    a password manager to grab onto.
 {
   const w = tryLoadGcalUi(railFixture());
+  let opened = null;
+  w.open = (url, target) => {
+    opened = { url, target };
+    return null;
+  };
   const cmd = Array.from(w.InboxKeys.gcalui.calendarCommands()).find((c) => c.id === "add-google");
   cmd.run();
+  assert.ok(opened && /\/settings\/addcalendar/.test(opened.url), "it opens Google's Subscribe pane (addcalendar URL)");
+  assert.equal(opened.target, "_blank", "in a new tab");
   const panel = w.document.querySelector(".inboxkeys-gcal-panel");
-  assert.ok(panel, "a guide panel opens");
-  assert.ok(panel.querySelector("ol li"), "the guide is a numbered step list");
-  assert.match(
-    panel.textContent,
-    /Share with specific people|Settings for my calendars|would like to view your calendar/i,
-    "the guide explains Calendar's sharing process"
-  );
+  assert.ok(panel, "and keeps this tab open with an education panel");
+  assert.ok(panel.querySelector("ol li"), "the panel has numbered steps");
+  assert.ok(panel.querySelector("input") === null, "the panel has no text box of ours");
+  const btns = Array.from(panel.querySelectorAll(".inboxkeys-gcal-btnrow button")).map((b) => b.textContent);
+  assert.ok(btns.some((t) => /refresh/i.test(t)), "with a Refresh button to press once it is approved");
+}
+
+// 9d. The education panel persists (no focus-out auto-close), so it survives the
+//     focus change when the new subscribe tab opens.
+{
+  const w = tryLoadGcalUi(railFixture());
+  w.open = () => null;
+  Array.from(w.InboxKeys.gcalui.calendarCommands()).find((c) => c.id === "add-google").run();
+  const overlay = w.document.querySelector(".inboxkeys-gcal-overlay");
+  assert.ok(overlay, "the education panel is open");
+  overlay.dispatchEvent(new w.Event("focusout", { bubbles: true }));
+  assert.ok(w.document.querySelector(".inboxkeys-gcal-overlay"), "it stays open after focus leaves (new tab opened)");
+}
+
+// 9c. Our text boxes opt out of password managers (1Password etc.) so their
+//     autofill menu never covers the palette. Pin the opt-out attributes.
+{
+  const w = tryLoadGcalUi(railFixture());
+  w.InboxKeys.gcalui.openOverlay();
+  const search = w.document.querySelector(".inboxkeys-gcal-overlay input");
+  assert.ok(search, "the palette has a search box");
+  assert.equal(search.getAttribute("autocomplete"), "off", "autocomplete is off");
+  assert.equal(search.getAttribute("data-1p-ignore"), "true", "1Password is told to ignore it");
+  assert.equal(search.getAttribute("data-lpignore"), "true", "LastPass is told to ignore it");
+}
+
+// 9b. "Add an Outlook or iCal calendar" opens the paste-a-link input with the
+//     numbered Outlook publish steps above a paste field, also led by a plain line.
+{
+  const w = tryLoadGcalUi(railFixture());
+  const cmd = Array.from(w.InboxKeys.gcalui.calendarCommands()).find((c) => c.id === "add-ics");
+  cmd.run();
+  const panel = w.document.querySelector(".inboxkeys-gcal-panel");
+  assert.ok(panel, "the Outlook add panel opens");
+  assert.ok(panel.querySelector(".inboxkeys-gcal-lead"), "it leads with a plain 'what this does' line");
+  assert.ok(panel.querySelector("input"), "it has a paste field");
+  assert.match(panel.textContent, /Publish a calendar/i, "it shows the Outlook publish steps");
 }
 
 // 10. The overlay closes the instant focus leaves it. This is the reliable

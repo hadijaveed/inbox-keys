@@ -48,8 +48,8 @@ window.InboxKeys = window.InboxKeys || {};
   function calendarCommands() {
     const cals = gcal.calendars();
     const cmds = [
-      { id: "add-ics", title: "Add an Outlook or iCal feed (paste a URL)", kind: "add", run: promptIcs },
-      { id: "add-google", title: "Add another Google account or shared calendar", kind: "add", run: addGoogle },
+      { id: "add-google", title: "Add a Gmail or Google calendar", kind: "add", run: addGoogle },
+      { id: "add-ics", title: "Add an Outlook or iCal calendar (paste link)", kind: "add", run: promptIcs },
       ...accountSwitchCommands(),
       { id: "show-all", title: "Show all calendars", kind: "layer", run: () => gcal.showAll() },
     ];
@@ -85,41 +85,50 @@ window.InboxKeys = window.InboxKeys || {};
 
   // ---- actions -----------------------------------------------------------
 
-  // Merging another Google account's calendar is a real multi-step share, not a
-  // one-click add: the OTHER account shares its calendar with this one, you
-  // accept the emailed invite here, then refresh. Spell that out, prefilled with
-  // this account's email, and offer to jump to the relevant settings + refresh.
+  // Adding another Google account: open Google's OWN "Subscribe to calendar"
+  // pane in a NEW tab (its addcalendar URL for the current account), and keep
+  // THIS tab open with a persistent education panel — add the email there, get
+  // the permission email, then come back and press Refresh. We don't steer
+  // Google's box ourselves (sturdier), and our own input never appears, so
+  // password managers have nothing to grab.
   function addGoogle() {
-    const email = gcal.accountEmail() || "this account's email";
+    const url = gcal.addCalendarUrl();
+    window.open(url, "_blank"); // subscribe UI in a new tab
     showGuide({
-      title: "Add another account's Google calendar",
+      persist: true, // must survive the focus change when the new tab opens
+      title: "Add a Gmail or Google calendar",
+      lead: "We opened Google's “Subscribe to calendar” in a new tab. Add the calendar there, then come back to THIS tab and press Refresh.",
       steps: [
-        "Open the OTHER account's Google Calendar (the one whose events you want to see here).",
-        'There: Settings, then "Settings for my calendars", pick the calendar, then "Share with specific people or groups".',
-        `Click "Add people and groups", enter ${email}, set "See all event details", and click Send.`,
-        'Back in THIS account you will get an email, "… would like to view your calendar". Open it and click the accept link.',
-        'Come back here and hit Refresh; the calendar now shows under "Other calendars".',
+        "In the new tab, type the email of the calendar you want to add.",
+        "If it is not already shared with you, that account gets a permission email to approve.",
+        "Once it is approved (or if it was already shared), come back to this tab.",
+        "Press “Refresh” below — the calendar appears under “Other calendars”.",
       ],
-      note: "Cross-account calendars merge through Google's own sharing, so this one-time setup can't be skipped. Organization accounts may limit external sharing.",
+      note: "Keep this tab open. Approval can take a moment; just press Refresh after it is granted.",
       buttons: [
-        { label: "Open calendar settings", primary: true, onClick: () => gcal.openAddCalendarPage() },
-        { label: "Refresh now", onClick: () => location.reload() },
+        { label: "Refresh now", primary: true, onClick: () => location.reload() },
+        { label: "Open subscribe page", onClick: () => window.open(url, "_blank") },
       ],
     });
   }
 
+  // Adding an OUTLOOK (or any iCal) calendar: Outlook hands you a private link;
+  // you paste it once and Calendar subscribes. Numbered Outlook publish steps
+  // above the box, with a one-line "what you're doing" lead.
   function promptIcs() {
     openInput({
-      title: "Add an Outlook or iCal feed",
+      title: "Add an Outlook or iCal calendar",
+      lead: "What this does: Outlook gives your calendar a private link. Paste it once and your Outlook events show up here under “Other calendars”.",
       steps: [
-        "Open Outlook on the web (outlook.office.com) and go to Calendar.",
-        "Click Settings (the gear, top right), then Calendar, then Shared calendars.",
-        "Under “Publish a calendar”, choose the calendar, set “Can view all details”, then click Publish.",
-        "Copy the link that ends in .ics (the ICS link, not the HTML one).",
+        "In Outlook on the web, open Calendar, then click the gear (Settings) at the top right.",
+        "Go to “Calendar”, then “Shared calendars”.",
+        "Under “Publish a calendar”, pick the calendar, choose “Can view all details”, then click “Publish”.",
+        "Two links appear. Copy the one that ENDS IN .ics (the ICS link, not the HTML one).",
         "Paste it below and press Enter.",
       ],
-      note: "Work accounts often have publishing turned off by an admin; if you do not see “Publish a calendar”, ask IT to enable it. The link is private, so treat it like a password.",
+      note: "Outlook feeds refresh every few hours, not instantly. If there is no “Publish a calendar”, a work admin turned it off. The link is private, so treat it like a password.",
       placeholder: "https://outlook.office365.com/owa/calendar/…/calendar.ics",
+      buttons: [{ label: "Add calendar", primary: true, submit: true }],
       onSubmit: (url) => {
         const u = (url || "").trim();
         if (!u) return;
@@ -159,6 +168,7 @@ window.InboxKeys = window.InboxKeys || {};
       .${PREFIX}-steps{margin:4px 0 6px;padding:0 18px 0 36px;color:#cfcfd6;font-size:13px;line-height:1.65}
       .${PREFIX}-steps li{margin:3px 0}
       .${PREFIX}-note{padding:4px 18px 12px;font-size:12px;color:#a6a6ad;line-height:1.5}
+      .${PREFIX}-lead{padding:2px 18px 10px;font-size:13px;color:#d7d7de;line-height:1.55}
       .${PREFIX}-btnrow{display:flex;gap:8px;justify-content:flex-end;padding:6px 16px 16px}
       .${PREFIX}-btnrow button{cursor:pointer;border:0;border-radius:7px;padding:7px 12px;font-size:13px}
       .${PREFIX}-nudge{position:fixed;left:16px;bottom:16px;z-index:2147483500;background:#1f1f24;color:#f2f2f4;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);padding:10px 12px;font:13px -apple-system,'Helvetica Neue',Arial,sans-serif;display:flex;gap:10px;align-items:center}
@@ -185,6 +195,23 @@ window.InboxKeys = window.InboxKeys || {};
       inputOverlay.remove();
       inputOverlay = null;
     }
+  }
+
+  // Stop password managers (1Password, LastPass, Bitwarden, Dashlane, Chrome)
+  // from treating our text boxes as login fields and popping an autofill menu
+  // over the palette. Our inputs are a command filter and a URL box, never
+  // credentials, so we opt out explicitly via the attributes each one honors.
+  function hardenField(input) {
+    input.type = "text";
+    input.name = "inboxkeys-field";
+    input.setAttribute("autocomplete", "off");
+    input.setAttribute("autocorrect", "off");
+    input.setAttribute("autocapitalize", "off");
+    input.setAttribute("spellcheck", "false");
+    input.setAttribute("data-1p-ignore", "true");
+    input.setAttribute("data-lpignore", "true");
+    input.setAttribute("data-bwignore", "true");
+    input.setAttribute("data-form-type", "other");
   }
 
   // Close an overlay as soon as focus leaves it. This is the reliable Escape
@@ -216,6 +243,7 @@ window.InboxKeys = window.InboxKeys || {};
     const search = document.createElement("input");
     search.className = `${PREFIX}-search`;
     search.placeholder = "Calendar layers and sources…";
+    hardenField(search);
     const list = document.createElement("ul");
     list.className = `${PREFIX}-list`;
     panel.appendChild(search);
@@ -292,9 +320,11 @@ window.InboxKeys = window.InboxKeys || {};
     search.focus();
   }
 
-  // A single-field input overlay with optional numbered instructions (used to
-  // paste an ICS URL, with step-by-step Outlook directions above the field).
-  function openInput({ title, steps, note, placeholder, onSubmit }) {
+  // A single-field input overlay with optional numbered instructions: a plain
+  // one-line "what you're doing" lead, the steps, a note, the field, then an
+  // optional row of action buttons. A button with `submit:true` runs onSubmit
+  // with the current field value (same as pressing Enter); others run onClick.
+  function openInput({ title, lead, steps, note, placeholder, buttons, onSubmit }) {
     ensureStyles();
     if (inputOverlay) inputOverlay.remove();
     inputOverlay = document.createElement("div");
@@ -305,6 +335,12 @@ window.InboxKeys = window.InboxKeys || {};
     h.className = `${PREFIX}-title`;
     h.textContent = title;
     panel.appendChild(h);
+    if (lead) {
+      const l = document.createElement("div");
+      l.className = `${PREFIX}-lead`;
+      l.textContent = lead;
+      panel.appendChild(l);
+    }
     if (Array.isArray(steps) && steps.length) {
       const ol = document.createElement("ol");
       ol.className = `${PREFIX}-steps`;
@@ -324,15 +360,38 @@ window.InboxKeys = window.InboxKeys || {};
     const input = document.createElement("input");
     input.className = `${PREFIX}-search`;
     input.placeholder = placeholder || "";
+    hardenField(input);
     panel.appendChild(input);
+    const close = closeInput;
+    function doSubmit() {
+      const v = input.value;
+      close();
+      if (onSubmit) onSubmit(v);
+    }
+    if (Array.isArray(buttons) && buttons.length) {
+      const row = document.createElement("div");
+      row.className = `${PREFIX}-btnrow`;
+      for (const b of buttons) {
+        const btn = document.createElement("button");
+        btn.className = `${PREFIX}-` + (b.primary ? "add" : "x");
+        btn.textContent = b.label;
+        btn.addEventListener("click", () => {
+          if (b.submit) {
+            doSubmit();
+            return;
+          }
+          close();
+          if (b.onClick) b.onClick();
+        });
+        row.appendChild(btn);
+      }
+      panel.appendChild(row);
+    }
     inputOverlay.appendChild(panel);
     document.body.appendChild(inputOverlay);
-    const close = closeInput;
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
-        const v = input.value;
-        close();
-        onSubmit(v);
+        doSubmit();
         e.preventDefault();
       } else if (e.key === "Escape") {
         close();
@@ -346,10 +405,11 @@ window.InboxKeys = window.InboxKeys || {};
     input.focus();
   }
 
-  // A read-only instructions panel (numbered steps + a row of action buttons).
-  // Used to walk through Calendar's cross-account SHARING process, which is a
-  // genuine multi-step flow, not a one-click add.
-  function showGuide({ title, steps, note, buttons }) {
+  // A read-only instructions panel (a plain "what you're doing" lead, numbered
+  // steps, a note, then a row of action buttons). With `persist`, it does NOT
+  // close on focus-out — required when the action opens a NEW tab (which blurs
+  // this one), so the education panel stays put for the user to return to.
+  function showGuide({ title, lead, steps, note, buttons, persist }) {
     ensureStyles();
     closeInput();
     inputOverlay = document.createElement("div");
@@ -360,6 +420,12 @@ window.InboxKeys = window.InboxKeys || {};
     h.className = `${PREFIX}-title`;
     h.textContent = title;
     panel.appendChild(h);
+    if (lead) {
+      const l = document.createElement("div");
+      l.className = `${PREFIX}-lead`;
+      l.textContent = lead;
+      panel.appendChild(l);
+    }
     if (Array.isArray(steps) && steps.length) {
       const ol = document.createElement("ol");
       ol.className = `${PREFIX}-steps`;
@@ -394,7 +460,7 @@ window.InboxKeys = window.InboxKeys || {};
     inputOverlay.addEventListener("mousedown", (e) => {
       if (e.target === inputOverlay) closeInput();
     });
-    bindAutoClose(inputOverlay, closeInput);
+    if (!persist) bindAutoClose(inputOverlay, closeInput);
     const first = row.querySelector("button");
     if (first && first.focus) first.focus();
   }
