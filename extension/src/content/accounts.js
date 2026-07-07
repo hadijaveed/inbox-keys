@@ -69,8 +69,10 @@ window.InboxKeys = window.InboxKeys || {};
     }
     const names = storage.get("accountNames") || {};
     const maxLearned = Object.keys(names).reduce((m, k) => Math.max(m, parseInt(k, 10)), gmail.accountIndex());
-    // Seed rows for every slot up to the highest known (min 3 rows to start).
-    const count = Math.max(3, maxLearned + 1);
+    // Seed a row for every g 0–g 8 slot so you can label all signed-in accounts
+    // in one pass (Google hides the full list, so we can't prefill the unvisited
+    // ones). Extra empty rows are dropped on save.
+    const count = Math.max(9, maxLearned + 1);
     const working = [];
     for (let i = 0; i < count; i++) working.push({ index: i, email: names[String(i)] || "" });
 

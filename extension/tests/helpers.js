@@ -99,6 +99,7 @@ function tryLoadContentScripts(bodyHtml) {
     "src/shared/hashutil.js",
     "src/shared/keymap.js",
     "src/content/storage.js",
+    "src/content/account-sync.js",
     "src/content/toast.js",
     "src/content/gmail.js",
     "src/content/accounts.js",

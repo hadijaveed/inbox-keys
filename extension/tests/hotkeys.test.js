@@ -1856,4 +1856,53 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(rowProbe.count >= 2, true, "probe results carry visible-match counts");
 }
 
+// Once the account list is known (the MAIN-world bridge enumerated it into
+// accountNames), the palette shows EXACTLY those accounts, every row by email —
+// no "account u/N" placeholders for slots that don't correspond to a real account.
+{
+  const w = load(listFixture(), "#inbox");
+  w.InboxKeys.storage.cache.accountNames = { "0": "me@gmail.com", "3": "work@revelai.com", "5": "side@x.com" };
+  const cmds = w.InboxKeys.commands.all();
+  const accts = cmds.filter((c) => /^acct-\d+$/.test(c.id));
+  assert.equal(accts.length, 3, "shows exactly the known accounts, not a fixed 0..8 range");
+  assert.equal(accts.every((c) => /Switch to \S+@/.test(c.title)), true, "every account row is labelled by email");
+  assert.equal(cmds.some((c) => c.id === "acct-7"), false, "no placeholder row for a slot that isn't a real account");
+  assert.equal(cmds.some((c) => c.id === "acct-3" && /work@revelai\.com/.test(c.title)), true, "a known account is labelled by its email");
+  assert.equal(cmds.some((c) => c.id === "accounts-config"), true, "still offers Configure accounts…");
+}
+
+// Cold start: before the bridge has populated accountNames, fall back to the
+// g 0–g 8 slots so multi-account switching still works immediately.
+{
+  const w = load(listFixture(), "#inbox");
+  w.InboxKeys.storage.cache.accountNames = {};
+  const accts = w.InboxKeys.commands.all().filter((c) => /^acct-\d+$/.test(c.id));
+  assert.equal(accts.length, 9, "cold start falls back to all nine g 0–g 8 slots");
+  assert.equal(accts.some((c) => c.id === "acct-8"), true, "fallback reaches u/8");
+}
+
+// account-sync.js: the isolated receiver validates and persists the list the
+// main-world bridge posts. Garbage entries are dropped; valid ones are stored.
+{
+  const w = load(listFixture(), "#inbox");
+  w.InboxKeys.storage.cache.accountNames = {};
+  let saved = null;
+  w.InboxKeys.storage.set = async (patch) => {
+    saved = patch;
+    Object.assign(w.InboxKeys.storage.cache, patch);
+  };
+  const changed = w.InboxKeys.accountSync.ingest([
+    { index: 0, email: "me@gmail.com", name: "Me" },
+    { index: 3, email: "work@revelai.com" },
+    { index: 99, email: "toobig@x.com" }, // out-of-range index → dropped
+    { index: 4, email: "not-an-email" }, // malformed email → dropped
+  ]);
+  assert.equal(changed, true, "ingest reports a change");
+  const persisted = (saved && saved.accountNames) || {};
+  assert.equal(persisted["0"], "me@gmail.com", "valid account 0 persisted");
+  assert.equal(persisted["3"], "work@revelai.com", "valid account 3 persisted");
+  assert.equal(Object.keys(persisted).length, 2, "out-of-range index and malformed email are dropped");
+  assert.equal(w.InboxKeys.accountSync.ingest([]), false, "an empty list is a no-op");
+}
+
 console.log("hotkey integration tests passed");

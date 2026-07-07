@@ -2,7 +2,7 @@
 
 A Superhuman-style layer for Gmail, shipped as a zero-dependency Chrome extension (Manifest V3). It adds a Cmd+K command palette, keyboard shortcuts and chords, split-inbox tabs, fast account switching, a calendar key, and a unified-calendar layer on Google Calendar. No Gmail API, no server, no AI, no build step. The only permission requested is `storage` (plus `host_permissions` for `mail.google.com` and `calendar.google.com`). Everything works by driving Gmail's and Google Calendar's own UI from content scripts.
 
-Current version: 0.6.0. Tests: 8 suites, all green (`cd extension && npm test`).
+Current version: 0.6.2. Tests: 9 suites, all green (`cd extension && npm test`).
 
 This file is the working guide for agents. `HANDOFF.md` has the longer narrative and the bug history; `README.md` is the user-facing overview. Read this before changing behavior.
 
@@ -30,6 +30,12 @@ src/content/toast.js      small toast UI.
 src/content/gmail.js      THE CORE. realClick, getContext, inThread, setHash, reply/replyAll/
                           forward, archive, back, compose, action(), waitFor poll helper, list scroll.
 src/content/accounts.js   g+digit account switching (/mail/u/N), accounts config modal.
+src/content/account-bridge.js  MAIN-world script (manifest world:"MAIN", mail+calendar). Reads
+                          the signed-in account list (email + /u/N index) out of window.gbar
+                          (a page global the isolated world can't see) and posts it via
+                          window.postMessage. Read-only. See "Account enumeration" below.
+src/content/account-sync.js    ISOLATED-world receiver (mail+calendar). Validates the posted
+                          list and persists it to the shared accountNames map.
 src/content/calendar.js   the 0 / 0 0 calendar key.
 src/content/listnav.js    keyboard cursor + multi-select over list rows (tr.zA). Shift range select.
 src/content/threadnav.js  cursor over message cards in an open conversation; expand/collapse.
@@ -56,6 +62,18 @@ src/background/           MV3 service worker (message relay).
 Where things live: keys and contexts are declared once in `keymap.js`; `commands.js` joins each catalog id to its `run()`. To add or change a binding you usually touch both. The palette is rebuilt every open so key overrides, tabs, and accounts stay current.
 
 Isolated world caveat: content scripts run in the ISOLATED world, so `window.InboxKeys` is invisible to page main-world JS. Browser-automation tools and the devtools console default to the main world and will see `InboxKeys` as undefined. DOM and `location.hash` inspection are world-independent, so verify live state through those. In Chrome devtools you can switch the console context to the extension content script to reach `InboxKeys`.
+
+## Account enumeration (the one main-world script)
+
+The palette switches accounts at `/mail/u/N` and `/calendar/u/N`, and the whole point is to label each `u/N` with its email. Google's account chooser menu is a CROSS-ORIGIN iframe (accounts.google.com / ogs.google.com), so no content script can read the rendered list — verified live on both Gmail and Calendar. We used to only learn an account's email when you actually visited it, so most accounts showed as a useless "account u/N".
+
+The real list IS available same-origin, but only as a page (MAIN-world) global: the OneGoogle bar stores it on `window.gbar`. Verified live (Jun 2026): on mail.google.com `gbar` holds an array of account objects — each carries the email, the display name, and the `/u/N` index, both as a number and inside a switch URL like `https://mail.google.com/mail/u/7/`. The active account is the one entry with NO switch URL. The path to that array runs through a minified Closure listener on a DOM node (`gbar.a.v.i.o…closure_lm_<random>…`) and the key names (`Ba`/`Ca`/`Ea`/`Wh`) and the listener id CHANGE between builds, so NEVER hardcode the path.
+
+`account-bridge.js` (manifest `world: "MAIN"`, mail+calendar, no new permission) finds the array by SHAPE, not by key name: BFS over `gbar` for the first array of >=2 distinct objects that each own an email-valued string; per element it reads the email by regex and the index by parsing `/u/(\d+)` out of any URL-valued property; the lone URL-less entry is resolved to the current index. DOM-tree links (parentNode/children/…) are pruned so the crawl stays inside gbar instead of exploding into the document; CSSOM objects are skipped (their getters throw). Found in ~80ms over ~37k nodes. It polls a few times (gbar populates a beat after load), then `window.postMessage`s the list and stops.
+
+`account-sync.js` (ISOLATED world, mail+calendar) listens for that message (guards `e.source===window`, origin, and an `__inboxkeys` marker), validates every `{index,email}` (integer 0–25, email regex), and merges into the shared `accountNames` map. Because `accountNames` is shared `chrome.storage` and `storage.onChange` is wired, enumerating once on Gmail populates emails for BOTH surfaces — Calendar's `gbar` usually carries only the current account, so Calendar relies on the map Gmail filled. The palettes (`commands.js accountCommands`, `gcal-ui.js accountSwitchCommands`) now show EXACTLY the known accounts (every row an email); only on a cold machine where nothing is known yet do they fall back to the g 0–g 8 slots so switching still works.
+
+Testing: `extractAccounts` is dual-exported (Node branch when `window` is undefined) and unit-tested against synthetic gbar-shaped graphs (`tests/account-bridge.test.js`); the receiver's `ingest` is exposed as `InboxKeys.accountSync.ingest` and tested in the jsdom harness. The full extract→postMessage→validate path was verified live against real Gmail (9 accounts, correct indices). The MAIN-world injection itself can only be confirmed after an extension reload.
 
 ## The context classifier (gmail.getContext)
 
@@ -200,7 +218,7 @@ Live-testing safety: when testing against real Gmail, take no destructive action
 - Cmd+K command palette, fuzzy search over all actions.
 - Hotkeys and g-prefixed chords (g i inbox, g t sent, g d drafts, g a all mail, g h snoozed, etc.).
 - Per-command key remapping via the options page (`keyOverrides` in storage); engine-special-cased keys are shown read-only.
-- Account switching g0 through g8 to /mail/u/N, plus palette entries by email (emails fill in as you visit each account).
+- Account switching g0 through g8 to /mail/u/N, with palette entries labelled by email for EVERY signed-in account (auto-enumerated from the OneGoogle bar on Gmail and shared to Calendar; see "Account enumeration"). Manual "Configure accounts…" remains as an override/fallback.
 - Calendar key: 0 opens a half-window calendar, 0 0 opens a new tab.
 - Split-inbox tab bar with a gear config modal. Each tab is a saved Gmail search driving the hash router. Tab and Shift+Tab cycle the tabs. Add/rename/remove, suggestion chips, persistence.
 - List cursor and multi-select over rows. Shift+Arrow is an anchor-based range (Shift+Down grows, Shift+Up shrinks and deselects the row it leaves).

@@ -30,9 +30,25 @@ window.InboxKeys = window.InboxKeys || {};
   function accountSwitchCommands() {
     const names = (storage && storage.get("accountNames")) || {};
     const cur = gcal.accountIndex();
-    const highest = Object.keys(names).reduce((m, k) => Math.max(m, Number(k)), Math.max(cur, 2));
+    // accountNames is shared with Gmail, where the MAIN-world bridge enumerates
+    // the real signed-in account list from the OneGoogle bar. So once Gmail has
+    // been open, we know every account's email here too — show exactly those, no
+    // useless "account u/N" placeholders. Before any account is known (cold start
+    // on a machine where Gmail hasn't loaded yet), fall back to the g 0–g 8 slots
+    // so switching still works.
+    const known = Object.keys(names)
+      .map(Number)
+      .filter((n) => Number.isInteger(n))
+      .sort((a, b) => a - b);
+    let indices;
+    if (known.length >= 2) {
+      indices = known;
+    } else {
+      indices = [];
+      for (let i = 0; i <= 8; i++) indices.push(i);
+    }
     const cmds = [];
-    for (let i = 0; i <= highest; i++) {
+    for (const i of indices) {
       if (i === cur) continue;
       const email = names[String(i)];
       cmds.push({

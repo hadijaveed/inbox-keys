@@ -185,19 +185,26 @@ window.InboxKeys = window.InboxKeys || {};
 
   // Account switching: g 0 / g 1 / g 2 … map to /mail/u/N. The engine binds
   // g 0–g 8 unconditionally (hotkeys.js), so every signed-in account is reachable
-  // by keyboard immediately. Here we just surface them in the palette: every
-  // account we've learned the email for, plus a couple of "next" slots so the
-  // unvisited ones are still discoverable. Emails fill in as you visit each.
+  // by keyboard immediately. The MAIN-world bridge enumerates the real signed-in
+  // account list from the OneGoogle bar (account-bridge.js → account-sync.js →
+  // accountNames), so once it has run we know every account's email.
   function accountCommands() {
     const cur = gmail.accountIndex();
     const names = storage.get("accountNames") || {};
     const known = accounts.known();
-    const highest = known.reduce((m, a) => Math.max(m, a.index), cur);
-    // Every configured/learned account, plus a couple of unvisited slots so they
-    // stay discoverable. Configure the full list (emails) from "Configure accounts…".
-    const maxIdx = Math.min(8, Math.max(2, highest));
-    const indices = [];
-    for (let i = 0; i <= maxIdx; i++) indices.push(i);
+    // Show exactly the accounts we know — every row carries an email, no useless
+    // "account u/N" placeholders. Before enumeration lands (cold start), fall back
+    // to the g 0–g 8 slots so switching still works immediately; emails appear on
+    // the next palette open once the bridge has populated accountNames.
+    let indices;
+    if (known.length >= 2) {
+      indices = known.map((a) => a.index);
+      if (!indices.includes(cur)) indices.push(cur);
+      indices = [...new Set(indices)].sort((a, b) => a - b);
+    } else {
+      indices = [];
+      for (let i = 0; i <= 8; i++) indices.push(i);
+    }
     const rows = indices.map((index) => {
       const email = names[String(index)];
       return {

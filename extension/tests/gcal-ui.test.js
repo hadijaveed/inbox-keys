@@ -72,20 +72,27 @@ function railFixture() {
   assert.equal(filterCommands(cmds, "focus prodify").some((c) => c.id === "focus:hadi@prodify.io"), true, "multi-token query matches across the title");
 }
 
-// 5. "Go to" account-switch commands: offered for other account slots, never
-//    for the current account, and labelled by email once one is known.
+// 5. "Go to" account-switch commands. Cold start (nothing known yet) falls back
+//    to the g0-g8 slots so switching still works; once the real account list is
+//    known (shared from Gmail's OneGoogle enumeration), it shows EXACTLY those
+//    accounts, every row by email, never the account you're already in.
 {
   const w = tryLoadGcalUi(railFixture());
   let cmds = Array.from(w.InboxKeys.gcalui.calendarCommands());
   assert.equal(cmds.some((c) => c.id === "acct:1" && c.kind === "go"), true, "offers a switch command for another account slot");
   assert.equal(cmds.some((c) => c.id === "acct:0"), false, "never offers a switch to the account you are already in");
-  w.InboxKeys.storage.cache.accountNames = { "1": "work@revelai.com" };
+  assert.equal(cmds.some((c) => c.id === "acct:8"), true, "cold start falls back to all g0-g8 slots");
+  assert.equal(cmds.filter((c) => /^acct:\d+$/.test(c.id)).length, 8, "fallback offers u/1..u/8 (current u/0 skipped)");
+
+  // Real list known → exactly those accounts, by email, no g0-g8 placeholders.
+  w.InboxKeys.storage.cache.accountNames = { "0": "me@gmail.com", "1": "work@revelai.com", "4": "side@x.com" };
   cmds = Array.from(w.InboxKeys.gcalui.calendarCommands());
-  assert.equal(
-    cmds.some((c) => c.id === "acct:1" && c.title === "Switch to work@revelai.com"),
-    true,
-    "a known account is labelled by its email"
-  );
+  const accts = cmds.filter((c) => /^acct:\d+$/.test(c.id));
+  assert.equal(accts.length, 2, "shows exactly the known accounts (current u/0 skipped), not a 0..8 range");
+  assert.equal(cmds.some((c) => c.id === "acct:1" && c.title === "Switch to work@revelai.com"), true, "a known account is labelled by its email");
+  assert.equal(cmds.some((c) => c.id === "acct:4" && c.title === "Switch to side@x.com"), true, "all known accounts are shown by email");
+  assert.equal(cmds.some((c) => c.id === "acct:2"), false, "no placeholder row for a slot that isn't a real account");
+  assert.equal(cmds.some((c) => c.id === "acct:8"), false, "no g0-g8 padding once the real list is known");
 }
 
 // 6. Navigation-mirror commands exist so the palette can drive create/today/views
