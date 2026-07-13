@@ -117,6 +117,13 @@ window.InboxKeys = window.InboxKeys || {};
   // and reveals them only on mouseover. We navigate by keyboard and never move
   // the real pointer, so synthesize the hover to make those buttons clickable.
   // (Like realClick this drives DOM handlers, not the native keyboard router.)
+  // While hover() is dispatching, listeners that track the REAL mouse (listnav's
+  // hover-target listener) must ignore these synthetic events, or revealing a
+  // row's buttons would count as the user pointing at that row.
+  let synthesizingHover = false;
+  function isSynthesizingHover() {
+    return synthesizingHover;
+  }
   function hover(el) {
     if (!el) return false;
     const r = el.getBoundingClientRect();
@@ -127,9 +134,14 @@ window.InboxKeys = window.InboxKeys || {};
       clientX: r.left + r.width / 2,
       clientY: r.top + r.height / 2,
     };
-    for (const type of ["pointerover", "mouseover", "pointermove", "mousemove"]) {
-      const Ctor = type.startsWith("pointer") && typeof PointerEvent !== "undefined" ? PointerEvent : MouseEvent;
-      el.dispatchEvent(new Ctor(type, opts));
+    synthesizingHover = true;
+    try {
+      for (const type of ["pointerover", "mouseover", "pointermove", "mousemove"]) {
+        const Ctor = type.startsWith("pointer") && typeof PointerEvent !== "undefined" ? PointerEvent : MouseEvent;
+        el.dispatchEvent(new Ctor(type, opts));
+      }
+    } finally {
+      synthesizingHover = false;
     }
     return true;
   }
@@ -816,6 +828,7 @@ window.InboxKeys = window.InboxKeys || {};
     exactButton,
     realClick,
     hover,
+    isSynthesizingHover,
     compose,
     action,
     undo,

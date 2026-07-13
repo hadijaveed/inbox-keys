@@ -68,8 +68,18 @@ window.InboxKeys = window.InboxKeys || {};
     return !!(a && b && (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING));
   }
 
+  // Arrow stops are the message cards, plus controls that stand for HIDDEN
+  // messages — the collapsed "N older messages" stack that sits BETWEEN cards
+  // (skipping it would strand those messages from the keyboard). Controls
+  // INSIDE a card — Gmail's "Show trimmed content" ⋯ dots, quoted-text
+  // expanders — belong to the message the cursor is already on, so arrows must
+  // NOT stop on them: every dotted message used to cost an extra keypress (the
+  // reported "arrows get stuck on the three dots"). Those stay clickable and
+  // the card itself remains the keyboard stop.
   function arrowTargets() {
-    return orderedUnique([...cards(), ...expansionControls()]);
+    const c = cards();
+    const between = expansionControls().filter((el) => !c.some((card) => card.contains(el)));
+    return orderedUnique([...c, ...between]);
   }
 
   function isExpandedCard(card) {

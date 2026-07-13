@@ -51,6 +51,49 @@ window.InboxKeys = window.InboxKeys || {};
     if (el) el.scrollIntoView({ block: scrollBlock });
   }
 
+  // After a triage action removes rows (archive / delete), keep the cursor on
+  // the same list POSITION: the row that shifts up into the removed row's slot
+  // is the natural next target, so "e e e" walks the list. Gmail removes rows
+  // ASYNCHRONOUSLY and often re-renders the whole list (all new nodes), so a
+  // bare integer cursor either pointed past the end (ensureCursor then snapped
+  // it to .btb or row 0 — the "cursor jumps to the top after e" bug) or got
+  // painted on a doomed DOM generation. Wait for the removed rows to actually
+  // leave a non-empty list, then clamp the saved index into the new row set and
+  // re-pin through Gmail's settling re-renders (same trick as restoreReturn).
+  // Guarded by keyNavSeq: the moment the user navigates again, stand down.
+  function reanchorAfterRemoval(removed, idx) {
+    hoverRow = null; // rows are about to shift under a stationary pointer
+    keyNavSeq = ++evSeq; // the user acted; keyboard owns the cursor again
+    const seqAtAction = keyNavSeq;
+    const apply = () => {
+      if (keyNavSeq !== seqAtAction) return;
+      const r = rows();
+      if (!r.length) return;
+      cursor = Math.max(0, Math.min(idx, r.length - 1));
+      paint(r);
+    };
+    waitFor(
+      () => {
+        const r = rows();
+        return r.length && removed.every((row) => !r.includes(row)) ? true : null;
+      },
+      () => {
+        apply();
+        setTimeout(apply, 150);
+        setTimeout(apply, 400);
+      },
+      () => paint() // rows never left (action failed / boundary): repaint as before
+    );
+  }
+
+  // The list position an action on `row` (or the checked set) should re-anchor
+  // to: the topmost removed row's index, i.e. where the survivors slide up to.
+  function removalIndex(targets) {
+    const r = rows();
+    const idxs = targets.map((row) => r.indexOf(row)).filter((i) => i >= 0);
+    return idxs.length ? Math.min(...idxs) : Math.max(cursor, 0);
+  }
+
   function focusEdge(dir) {
     const r = rows();
     if (!r.length) return false;
@@ -308,21 +351,27 @@ window.InboxKeys = window.InboxKeys || {};
     if (sel.length) {
       // Bulk: the toolbar acts on the whole checked set in one shot when it's
       // enabled; otherwise archive each selected row through its hover button.
+      const idx = removalIndex(sel);
       const b = toolbarButton("Archive");
       if (isEnabled(b)) {
         gmail.realClick(b);
-        setTimeout(() => paint(), 200);
+        reanchorAfterRemoval(sel, idx);
         return;
       }
       const n = sel.map((row) => clickPerRowArchive(row)).filter(Boolean).length;
-      if (!n) cannotArchive();
-      setTimeout(() => paint(), 200);
+      if (!n) {
+        cannotArchive();
+        setTimeout(() => paint(), 200);
+        return;
+      }
+      reanchorAfterRemoval(sel, idx);
       return;
     }
     const row = cursorRow();
     if (!row) return;
+    const idx = removalIndex([row]);
     if (clickPerRowArchive(row)) {
-      setTimeout(() => paint(), 200);
+      reanchorAfterRemoval([row], idx);
       return;
     }
     setSelected(row, true);
@@ -336,32 +385,35 @@ window.InboxKeys = window.InboxKeys || {};
           return;
         }
         gmail.realClick(b);
-        setTimeout(() => paint(), 200);
+        reanchorAfterRemoval([row], idx);
       },
       () => setSelected(row, false)
     );
   }
 
   function trash() {
-    if (selectedRows().length) {
+    const sel = selectedRows();
+    if (sel.length) {
+      const idx = removalIndex(sel);
       const b = toolbarButton("Delete") || toolbarButton("Trash");
       if (b) gmail.realClick(b);
-      setTimeout(() => paint(), 200);
+      reanchorAfterRemoval(sel, idx);
       return;
     }
     const row = cursorRow();
     if (!row) return;
+    const idx = removalIndex([row]);
     const rb = rowButtonMatching(row, [/^Delete$/i, /^Trash$/i]);
     if (rb && gmail.isVisible(rb)) {
       gmail.realClick(rb);
-      setTimeout(() => paint(), 200);
+      reanchorAfterRemoval([row], idx);
       return;
     }
     setSelected(row, true);
     setTimeout(() => {
       const b = toolbarButton("Delete") || toolbarButton("Trash");
       if (b) gmail.realClick(b);
-      setTimeout(() => paint(), 200);
+      reanchorAfterRemoval([row], idx);
     }, 70);
   }
 
@@ -471,11 +523,31 @@ window.InboxKeys = window.InboxKeys || {};
   }
 
   // Track the row the mouse is over so single-row actions can target "the row I'm
-  // pointing at." mouseover (not mousemove) fires only when entering a new row, so
-  // a resting mouse never steals the cursor from keyboard navigation.
+  // pointing at." Two kinds of mouseover must NOT become the target:
+  //
+  // 1. Our own synthetic hover: gmail.hover(row) fires mouseover to reveal the
+  //    per-row buttons before archiving. Filtered by gmail.isSynthesizingHover().
+  // 2. The browser's PHANTOM mouseover: when Gmail removes/re-renders rows under
+  //    a STATIONARY pointer (right after an archive), the browser fires a real,
+  //    trusted mouseover on whatever row lands under the mouse — zero user
+  //    intent. That row then silently owned the next e/x/Enter, the reported
+  //    "cursor loses its position when I press e" bug. A human hover is always
+  //    accompanied by mousemove and a phantom never is, so a row only becomes
+  //    the hover target when the mouse actually moved just before the mouseover.
+  let lastMoveAt = 0;
+  document.addEventListener(
+    "mousemove",
+    () => {
+      if (gmail.isSynthesizingHover && gmail.isSynthesizingHover()) return;
+      lastMoveAt = Date.now();
+    },
+    true
+  );
   document.addEventListener(
     "mouseover",
     (e) => {
+      if (gmail.isSynthesizingHover && gmail.isSynthesizingHover()) return;
+      if (Date.now() - lastMoveAt > 300) return; // no recent real movement: a re-render phantom
       const row = e.target && e.target.closest ? e.target.closest("tr.zA") : null;
       if (row) {
         hoverRow = row;

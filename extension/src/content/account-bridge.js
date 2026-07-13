@@ -113,9 +113,14 @@
     function tick() {
       tries++;
       let accts = [];
-      try { accts = extractAccounts(window.gbar, currentIndex()); } catch (e) { accts = []; }
+      const cur = currentIndex();
+      try { accts = extractAccounts(window.gbar, cur); } catch (e) { accts = []; }
       if (accts.length) {
-        try { window.postMessage({ __inboxkeys: "accounts", payload: JSON.stringify(accts) }, location.origin); } catch (e) {}
+        // `full: true` marks this as a COMPLETE snapshot of gbar's account list
+        // (Gmail carries all of them), so the receiver replaces the map and prunes
+        // stale indices rather than merging. `current` lets it reject a transient
+        // partial read that somehow dropped the account we're actually on.
+        try { window.postMessage({ __inboxkeys: "accounts", payload: JSON.stringify(accts), full: true, current: cur }, location.origin); } catch (e) {}
         return;
       }
       if (tries < 6) setTimeout(tick, 1500);

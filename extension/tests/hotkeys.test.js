@@ -399,6 +399,8 @@ function wireList(w) {
   }
 
   // The default cursor is the top row, but the mouse is over the SECOND row.
+  // A real hover always arrives with mousemove (the phantom-hover guard keys on it).
+  w.document.dispatchEvent(new w.MouseEvent("mousemove", { bubbles: true }));
   rows(w)[1].dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
   press(w, "e", { target: w.document.body });
   assert.deepEqual(archived, ["two"], "e archives the hovered row, not the default top row");
@@ -1355,6 +1357,29 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("inboxkeys-msg-cursor"), true, "ArrowDown should continue to the next message card after an expansion control");
 }
 
+// Expansion controls INSIDE a message — Gmail's "Show trimmed content" ⋯ dots
+// (.ajR/.ajT) — are NOT arrow stops: arrows jump message to message and must
+// not get stuck on the dots. (Controls BETWEEN cards, tested above, still are.)
+{
+  const trimmedThread = `
+    <div role="main">
+      <div role="listitem" data-card="a"><div class="gE">a</div><div class="a3s" data-message-id="m1">a
+        <div class="ajR" role="button" aria-label="Show trimmed content" data-dots="a">…</div>
+      </div></div>
+      <div role="listitem" data-card="b"><div class="gE">b</div><div class="a3s" data-message-id="m2">b</div></div>
+    </div>`;
+  const w = load(trimmedThread, "#inbox/" + ID);
+  const dots = w.document.querySelector('[data-dots="a"]');
+
+  // Cursor starts on the latest card (b); ArrowUp must land on card a directly.
+  press(w, "ArrowUp", { target: w.document.body });
+  assert.equal(w.document.querySelector('[data-card="a"]').classList.contains("inboxkeys-msg-cursor"), true, "ArrowUp jumps straight to the previous message, skipping the trimmed-content dots");
+  assert.equal(dots.classList.contains("inboxkeys-msg-cursor"), false, "the in-message ⋯ dots never take the cursor");
+
+  press(w, "ArrowDown", { target: w.document.body });
+  assert.equal(w.document.querySelector('[data-card="b"]').classList.contains("inboxkeys-msg-cursor"), true, "ArrowDown returns straight to the next message");
+}
+
 // A single-message thread (a long newsletter): there's no other card to move to, so
 // arrows scroll the reading pane instead of moving the indicator.
 {
@@ -1560,6 +1585,7 @@ function wireInlineActions(w, opts = {}) {
   const checkboxOne = rows(w)[0].querySelector('[role="checkbox"]');
   const checkboxTwo = rows(w)[1].querySelector('[role="checkbox"]');
   checkboxOne.setAttribute("aria-checked", "true");
+  w.document.dispatchEvent(new w.MouseEvent("mousemove", { bubbles: true }));
   rows(w)[1].dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
   w.document.querySelector('[aria-label="Snooze until"]').addEventListener("click", () => {
     w.__snoozedRows = rows(w)
@@ -1903,6 +1929,181 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(persisted["3"], "work@revelai.com", "valid account 3 persisted");
   assert.equal(Object.keys(persisted).length, 2, "out-of-range index and malformed email are dropped");
   assert.equal(w.InboxKeys.accountSync.ingest([]), false, "an empty list is a no-op");
+}
+
+// Google reshuffles /u/N when accounts are added/removed, so an account can move
+// to a new index. ingest must enforce one-email-one-index: re-enumerating an
+// email at a new index drops its stale old index, or switching to the dead index
+// would redirect Gmail to /u/0 ("switching is broken").
+{
+  const w = load(listFixture(), "#inbox");
+  w.InboxKeys.storage.cache.accountNames = { "0": "me@gmail.com", "9": "moved@x.com" };
+  let saved = null;
+  w.InboxKeys.storage.set = async (patch) => { saved = patch; Object.assign(w.InboxKeys.storage.cache, patch); };
+  const changed = w.InboxKeys.accountSync.ingest([{ index: 4, email: "moved@x.com" }]);
+  assert.equal(changed, true, "moving an account to a new index is a change");
+  assert.equal(saved.accountNames["4"], "moved@x.com", "the account is recorded at its new index");
+  assert.equal("9" in saved.accountNames, false, "the stale old index for that email is pruned");
+}
+
+// A full Gmail snapshot is authoritative: it REPLACES the map, pruning stale
+// indices left by removed accounts or reshuffles (the duplicate-account bug).
+{
+  const w = load(listFixture(), "#inbox");
+  w.InboxKeys.storage.cache.accountNames = {
+    "0": "me@gmail.com", "1": "sage@x.com", "4": "byaan@x.com",
+    "6": "sage@x.com", "9": "byaan@x.com", // stale dupes from an older arrangement
+  };
+  let saved = null;
+  w.InboxKeys.storage.set = async (patch) => { saved = patch; Object.assign(w.InboxKeys.storage.cache, patch); };
+  const changed = w.InboxKeys.accountSync.ingestSnapshot(
+    [
+      { index: 0, email: "me@gmail.com" },
+      { index: 1, email: "sage@x.com" },
+      { index: 4, email: "byaan@x.com" },
+    ],
+    0
+  );
+  assert.equal(changed, true, "an authoritative snapshot that prunes stale rows is a change");
+  assert.deepEqual(Object.keys(saved.accountNames).sort(), ["0", "1", "4"], "map holds exactly the live accounts, dupes pruned");
+}
+
+// A snapshot missing the current account is treated as a partial/transient read
+// and rejected, so a mid-populate gbar can't wipe the map.
+{
+  const w = load(listFixture(), "#inbox");
+  w.InboxKeys.storage.cache.accountNames = { "0": "me@gmail.com", "3": "work@x.com" };
+  let saved = null;
+  w.InboxKeys.storage.set = async (patch) => { saved = patch; Object.assign(w.InboxKeys.storage.cache, patch); };
+  const changed = w.InboxKeys.accountSync.ingestSnapshot(
+    [{ index: 3, email: "work@x.com" }, { index: 5, email: "other@x.com" }],
+    0 // current account 0 is absent from the snapshot → reject
+  );
+  assert.equal(changed, false, "a snapshot missing the current account is rejected");
+  assert.equal(saved, null, "the map is left untouched");
+}
+
+// ---- Cursor position across archive (the "e loses my cursor" bug) ----------
+// Real Gmail removes the archived row ASYNCHRONOUSLY, often re-renders the whole
+// list, and the shifted rows fire a browser mouseover under a STATIONARY pointer
+// (no mousemove). The cursor must stay on the same list POSITION through all of
+// that, and the phantom mouseover must not steal the next e/x/Enter target.
+
+const triageRow = (name) => `
+        <tr class="zA" data-row="${name}">
+          <td><div role="checkbox" aria-checked="false"></div></td>
+          <td><span class="bog">${name}</span></td>
+          <td><ul><li data-tooltip="Archive">Archive</li></ul></td>
+        </tr>`;
+const triageFixture = () => `
+    <div role="main">
+      <div gh="tl"><table><tbody>${triageRow("one")}${triageRow("two")}${triageRow("three")}</tbody></table></div>
+    </div>`;
+function wireArchiveRecorder(w, archived) {
+  for (const row of rows(w)) {
+    row.querySelector('li[data-tooltip="Archive"]').addEventListener("click", () => {
+      archived.push(row.getAttribute("data-row"));
+    });
+  }
+}
+
+// Archive the middle row: Gmail removes it a beat later and fires a phantom
+// mouseover on the row that lands under the still pointer. The cursor must stay
+// at the same position (now the next thread), and the next e must act there.
+{
+  const w = load(triageFixture(), "#inbox");
+  const archived = [];
+  wireArchiveRecorder(w, archived);
+
+  press(w, "j", { target: w.document.body }); // cursor → index 1 ("two")
+  const rowTwo = rows(w)[1];
+
+  const timers = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn) => { timers.push(fn); return 0; };
+  press(w, "e", { target: w.document.body });
+  assert.deepEqual(archived, ["two"], "e archives the cursor row");
+
+  // Gmail's async removal + the phantom mouseover under the stationary pointer.
+  rowTwo.remove();
+  rows(w)[0].dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
+  for (let i = 0; i < 50 && timers.length; i++) timers.shift()();
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(rows(w)[1].classList.contains("inboxkeys-cursor"), true, "cursor stays at the same list position (the row that shifted up)");
+  assert.equal(rows(w)[0].classList.contains("inboxkeys-cursor"), false, "the phantom mouseover must not drag the cursor to the top");
+
+  archived.length = 0;
+  press(w, "e", { target: w.document.body });
+  assert.deepEqual(archived, ["three"], "the next e archives the row under the cursor, not the phantom-hovered top row");
+}
+
+// Archiving the LAST row: the saved position is past the end of the shrunken
+// list, so the cursor clamps to the new last row instead of resetting to 0.
+{
+  const w = load(triageFixture(), "#inbox");
+  const archived = [];
+  wireArchiveRecorder(w, archived);
+
+  press(w, "j", { target: w.document.body });
+  press(w, "j", { target: w.document.body }); // cursor → index 2 ("three")
+  const rowThree = rows(w)[2];
+
+  const timers = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn) => { timers.push(fn); return 0; };
+  press(w, "e", { target: w.document.body });
+  assert.deepEqual(archived, ["three"], "e archives the last row");
+
+  rowThree.remove();
+  for (let i = 0; i < 50 && timers.length; i++) timers.shift()();
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(rows(w)[1].classList.contains("inboxkeys-cursor"), true, "cursor clamps to the new last row");
+}
+
+// Gmail sometimes rebuilds the ENTIRE list after an archive (all-new nodes).
+// The positional re-anchor must land on the same index in the fresh row set.
+{
+  const w = load(triageFixture(), "#inbox");
+  const archived = [];
+  wireArchiveRecorder(w, archived);
+
+  press(w, "j", { target: w.document.body }); // cursor → index 1 ("two")
+
+  const timers = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn) => { timers.push(fn); return 0; };
+  press(w, "e", { target: w.document.body });
+  assert.deepEqual(archived, ["two"], "e archives the cursor row");
+
+  const tbody = w.document.querySelector('[gh="tl"] tbody');
+  tbody.innerHTML = triageRow("one") + triageRow("three"); // full re-render, every node new
+  for (let i = 0; i < 50 && timers.length; i++) timers.shift()();
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(rows(w)[1].getAttribute("data-row"), "three", "fixture sanity: fresh nodes");
+  assert.equal(rows(w)[1].classList.contains("inboxkeys-cursor"), true, "cursor re-anchors to the same position across a full list rebuild");
+}
+
+// A phantom mouseover (no mousemove — a re-render under a still pointer) must
+// not become the e/x/Enter target; a REAL hover (mousemove + mouseover) must.
+{
+  const w = load(triageFixture(), "#inbox");
+  const archived = [];
+  wireArchiveRecorder(w, archived);
+
+  // Phantom: bare mouseover on the third row. The target must stay the cursor.
+  rows(w)[2].dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
+  press(w, "e", { target: w.document.body });
+  assert.deepEqual(archived, ["one"], "a phantom mouseover does not steal the archive target");
+
+  // Real hover: mousemove then mouseover. The hovered row wins as the target.
+  archived.length = 0;
+  w.document.dispatchEvent(new w.MouseEvent("mousemove", { bubbles: true }));
+  rows(w)[2].dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
+  press(w, "e", { target: w.document.body });
+  assert.deepEqual(archived, ["three"], "a real hover (with mousemove) still targets the hovered row");
 }
 
 console.log("hotkey integration tests passed");
