@@ -1658,6 +1658,247 @@ function wireInlineActions(w, opts = {}) {
   assert.equal(w.__openedLink, true, "Cmd+O should click the focused message link");
 }
 
+// Cmd+O: one attachment beats a link-stuffed signature — opens the chip
+// directly (Gmail's previewer), no picker.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div>
+        <div class="a3s" data-message-id="m1">
+          Please see attached.
+          <div class="gmail_signature">
+            <a href="https://prodduke.sharepoint.com/sites/X">SDOH screening</a>
+            <a href="https://phmo.dukehealth.org">site</a>
+            <a href="https://maps.google.com/?q=3100+Tower+Blvd">address</a>
+          </div>
+        </div>
+        <div class="aQH">
+          <span class="aZo" download_url="application/pdf:report.pdf:https://mail.google.com/dl"><a href="https://mail.google.com/att1"><span class="aV3">report.pdf</span></a></span>
+        </div>
+      </div>
+    </div>`, "#inbox/" + ID);
+  w.document.querySelector(".aZo").addEventListener("click", (e) => {
+    e.preventDefault();
+    w.__openedChip = true;
+  });
+
+  press(w, "o", { target: w.document.body, metaKey: true });
+
+  assert.equal(w.__openedChip, true, "the lone attachment should open directly");
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "no picker when one strong candidate exists");
+}
+
+// Cmd+O: one body link beats signature links even when the signature comes
+// first in the DOM.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div>
+        <div class="a3s" data-message-id="m1">
+          <div class="gmail_signature"><a href="https://sig.example.com/a">sig a</a><a href="https://sig.example.com/b">sig b</a></div>
+          <a href="https://docs.example.com/proposal">Review the proposal</a>
+        </div>
+      </div>
+    </div>`, "#inbox/" + ID);
+  w.document.querySelectorAll("a").forEach((a) => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      w.__opened = a.getAttribute("href");
+    });
+  });
+
+  press(w, "o", { target: w.document.body, metaKey: true });
+
+  assert.equal(w.__opened, "https://docs.example.com/proposal", "the body link should win over signature links");
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "no picker when one strong candidate exists");
+}
+
+// Cmd+O: quoted-text links are weak like signature links, and a duplicate of a
+// body link (same destination) collapses into it.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div>
+        <div class="a3s" data-message-id="m1">
+          <a href="https://docs.example.com/spec">the spec</a>
+          <div class="gmail_quote">
+            <a href="https://docs.example.com/spec">the spec</a>
+            <a href="https://old.example.com/thread">older link</a>
+          </div>
+        </div>
+      </div>
+    </div>`, "#inbox/" + ID);
+  const kinds = w.InboxKeys.gmail
+    .extractOpenCandidates(w.document.querySelector('[role="listitem"]'))
+    .map((c) => c.kind);
+  assert.equal(kinds.join(","), "link,quoted", "duplicate keeps the body occurrence; quoted link classified weak");
+
+  w.document.querySelector("a").addEventListener("click", (e) => {
+    e.preventDefault();
+    w.__openedBody = true;
+  });
+  press(w, "o", { target: w.document.body, metaKey: true });
+  assert.equal(w.__openedBody, true, "the deduped body link should open directly");
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "no picker after dedupe leaves one strong candidate");
+}
+
+// Cmd+O: two attachments are genuinely ambiguous — the picker opens, nothing
+// is clicked, candidates are ranked attachments-first, and ArrowDown+Enter
+// opens the chosen chip.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div>
+        <div class="a3s" data-message-id="m1">
+          <div class="gmail_signature"><a href="https://sig.example.com">sig</a></div>
+        </div>
+        <div class="aQH">
+          <span class="aZo" id="chip1"><a href="https://mail.google.com/att1"><span class="aV3">find Help Implementation.pptx</span></a></span>
+          <span class="aZo" id="chip2"><a href="https://mail.google.com/att2"><span class="aV3">Tip Sheet.docx</span></a></span>
+        </div>
+      </div>
+    </div>`, "#inbox/" + ID);
+  const kinds = w.InboxKeys.gmail
+    .extractOpenCandidates(w.document.querySelector('[role="listitem"]'))
+    .map((c) => c.kind);
+  assert.equal(kinds.join(","), "attachment,attachment,signature", "attachments rank above signature links");
+
+  w.__clicked = [];
+  w.document.querySelectorAll(".aZo").forEach((chip) => {
+    chip.addEventListener("click", (e) => {
+      e.preventDefault();
+      // Gmail's open handler lives on the chip's anchor, so the click must
+      // target the anchor (and bubble here), not the aZo wrapper itself.
+      w.__clicked.push(chip.id + ":" + e.target.tagName);
+    });
+  });
+  // Palette run() defers via setTimeout; capture timers so the click resolves
+  // synchronously inside the test.
+  const timers = [];
+  w.setTimeout = (fn) => {
+    timers.push(fn);
+    return 0;
+  };
+
+  press(w, "o", { target: w.document.body, metaKey: true });
+  assert.equal(w.InboxKeys.palette.isOpen(), true, "ambiguous candidates should open the picker");
+  assert.deepEqual(w.__clicked, [], "nothing opens until the user picks");
+
+  press(w, "ArrowDown", { target: w.document.body });
+  press(w, "Enter", { target: w.document.body });
+  while (timers.length) timers.shift()();
+
+  assert.deepEqual(w.__clicked, ["chip2:A"], "ArrowDown+Enter should open the second attachment via its anchor");
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "the picker closes after selection");
+}
+
+// While the picker is open, our own Mod bindings are consumed so Cmd+O can't
+// fall through to Chrome's file dialog.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div>
+        <div class="a3s" data-message-id="m1">
+          <a href="https://a.example.com">first</a>
+          <a href="https://b.example.com">second</a>
+        </div>
+      </div>
+    </div>`, "#inbox/" + ID);
+  press(w, "o", { target: w.document.body, metaKey: true });
+  assert.equal(w.InboxKeys.palette.isOpen(), true, "picker open");
+
+  const again = press(w, "o", { target: w.document.body, metaKey: true });
+  assert.equal(again.defaultPrevented, true, "a second Cmd+O is consumed while the picker is open");
+  assert.equal(w.InboxKeys.palette.isOpen(), true, "and the picker stays up");
+}
+
+// Redirect wrappers dedupe against the bare destination (slash variants too),
+// while a docs.google.com/url link is a real destination, never unwrapped.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div>
+        <div class="a3s" data-message-id="m1">
+          <a href="https://x.example.com">direct</a>
+          <a href="https://www.google.com/url?q=https%3A%2F%2Fx.example.com">wrapped duplicate</a>
+          <a href="https://docs.google.com/url?q=https%3A%2F%2Fy.example.com">a real docs link</a>
+        </div>
+      </div>
+    </div>`, "#inbox/" + ID);
+  const cands = w.InboxKeys.gmail.extractOpenCandidates(w.document.querySelector('[role="listitem"]'));
+  assert.equal(cands.length, 2, "wrapped duplicate collapses; docs.google.com/url stays distinct");
+  assert.equal(cands[0].label, "direct", "the direct occurrence is kept");
+}
+
+// If Gmail ever renames the chip classes, labeled per-attachment controls
+// still surface as attachments (structural fallback) — but never from a toolbar.
+{
+  const w = load(`
+    <div role="main">
+      <div gh="tm"><div role="button" aria-label="Download all attachments">dl</div></div>
+      <div role="listitem"><div class="gE">h</div>
+        <div class="a3s" data-message-id="m1">
+          <div class="gmail_signature"><a href="https://sig.example.com">sig</a></div>
+        </div>
+        <div role="button" aria-label="Download attachment report.pdf">report</div>
+      </div>
+    </div>`, "#inbox/" + ID);
+  const card = w.document.querySelector('[role="listitem"]');
+  const kinds = w.InboxKeys.gmail.extractOpenCandidates(card).map((c) => c.kind);
+  assert.equal(kinds.join(","), "attachment,signature", "labeled control counts as the attachment");
+
+  w.document.querySelector('[aria-label="Download attachment report.pdf"]').addEventListener("click", (e) => {
+    e.preventDefault();
+    w.__openedFallback = true;
+  });
+  press(w, "o", { target: w.document.body, metaKey: true });
+  assert.equal(w.__openedFallback, true, "the lone fallback attachment opens directly");
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "no picker for one strong candidate");
+}
+
+// Cmd+O: several body links are ambiguous too — picker, and Escape backs out
+// without opening anything.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div>
+        <div class="a3s" data-message-id="m1">
+          <a href="https://a.example.com">first</a>
+          <a href="https://b.example.com">second</a>
+        </div>
+      </div>
+    </div>`, "#inbox/" + ID);
+  w.__opened = false;
+  w.document.querySelectorAll("a").forEach((a) => {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      w.__opened = true;
+    });
+  });
+
+  press(w, "o", { target: w.document.body, metaKey: true });
+  assert.equal(w.InboxKeys.palette.isOpen(), true, "two body links should open the picker");
+
+  press(w, "Escape", { target: w.document.body });
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "Escape closes the picker");
+  assert.equal(w.__opened, false, "Escape must not open anything");
+}
+
+// Cmd+O with nothing openable (mailto-only message) toasts instead of
+// silently eating the keystroke, and never opens the picker.
+{
+  const w = load(`
+    <div role="main">
+      <div role="listitem"><div class="gE">h</div>
+        <div class="a3s" data-message-id="m1"><a href="mailto:susan.spratt@duke.edu">susan.spratt@duke.edu</a></div>
+      </div>
+    </div>`, "#inbox/" + ID);
+  const event = press(w, "o", { target: w.document.body, metaKey: true });
+
+  assert.equal(event.defaultPrevented, true, "Cmd+O is still claimed with no candidates");
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "no picker with zero candidates");
+}
+
 // Superhuman's attach shortcut is Cmd/Ctrl+U in compose.
 {
   const w = load(`

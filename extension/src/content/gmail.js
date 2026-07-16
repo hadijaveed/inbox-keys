@@ -75,6 +75,15 @@ window.InboxKeys = window.InboxKeys || {};
     cardHeader: ".gE",
     messageBody: ".a3s",
     inlineActions: ".ams",
+    // boilerplate zones inside a message body: links in here are almost never
+    // what Cmd+O means, so they rank below body links and attachments
+    signature: '.gmail_signature, [data-smartmail="gmail_signature"]',
+    quotedText: ".gmail_quote, .adL",
+    // an attachment chip at the bottom of a message card; clicking it opens
+    // Gmail's own previewer. download_url ("mime:filename:url") is the
+    // structural fallback if the aZo class is renamed.
+    attachmentChip: "span.aZo, [download_url]",
+    attachmentName: ".aV3",
     // structural shape of an open conversation, for when [data-message-id]
     // is renamed: a message card header or a message body inside main.
     threadFallback: '[role="main"] [role="listitem"] .gE, [role="main"] .a3s',
@@ -379,22 +388,152 @@ window.InboxKeys = window.InboxKeys || {};
     return true;
   }
 
+  // ---- Open link or attachment (Cmd+O) ------------------------------------
+  // The old behavior clicked the FIRST visible anchor in the message, which in
+  // a typical business email is a signature link (SharePoint, website, maps…)
+  // rather than the attachment or body link the user meant. Now candidates are
+  // extracted and ranked; one unambiguous target opens directly, anything else
+  // opens a picker (palette.choose) so the user says which.
+
+  // Unwrap known tracking/redirect wrappers for display and dedupe ONLY — the
+  // original anchor is always what gets clicked.
+  function destinationUrl(href) {
+    try {
+      const u = new URL(href, location.href);
+      // Only Google's actual redirect host — docs.google.com/url etc. are real
+      // destinations, not wrappers.
+      if ((u.hostname === "www.google.com" || u.hostname === "google.com") && u.pathname === "/url") {
+        const q = u.searchParams.get("q") || u.searchParams.get("url");
+        if (q) {
+          // Normalize through URL so a wrapped and a direct copy of the same
+          // destination dedupe (e.g. trailing-slash variants).
+          try {
+            return new URL(q).href;
+          } catch (e2) {
+            return q;
+          }
+        }
+      }
+      return u.href;
+    } catch (e) {
+      return href || "";
+    }
+  }
+
+  function displayUrl(href) {
+    try {
+      const u = new URL(destinationUrl(href));
+      const path = u.pathname !== "/" ? u.pathname : "";
+      const s = u.hostname.replace(/^www\./, "") + path;
+      return s.length > 42 ? s.slice(0, 41) + "…" : s;
+    } catch (e) {
+      return href || "";
+    }
+  }
+
+  function linkLabel(a) {
+    const text = (a.textContent || "").trim().replace(/\s+/g, " ");
+    if (text) return text.length > 60 ? text.slice(0, 59) + "…" : text;
+    const img = a.querySelector("img[alt]");
+    const alt = img && (img.getAttribute("alt") || "").trim();
+    if (alt) return alt;
+    return displayUrl(a.getAttribute("href"));
+  }
+
+  function attachmentLabel(chip) {
+    const name = chip.querySelector(SEL.attachmentName);
+    if (name && name.textContent.trim()) return name.textContent.trim();
+    // download_url is "mimetype:filename:url"
+    const parts = (chip.getAttribute("download_url") || "").split(":");
+    if (parts.length >= 3 && parts[1]) return parts[1];
+    return controlLabel(chip) || "Attachment";
+  }
+
+  // Rank order doubles as picker group order. Attachments and body links are
+  // "strong" (plausibly what the user meant); signature and quoted links are
+  // "weak" (boilerplate that should never win by DOM position).
+  const OPEN_RANK = { attachment: 0, link: 1, signature: 2, quoted: 3 };
+  const OPEN_GROUP = { attachment: "Attachments", link: "Links", signature: "Signature links", quoted: "Quoted links" };
+
+  function extractOpenCandidates(scope) {
+    const root = scope && scope !== document ? scope : firstVisible(SEL.main) || document;
+    const out = [];
+
+    // Attachment chips (each opens Gmail's previewer via realClick). The two
+    // chip selectors can match nested elements of the same chip — keep one.
+    // Click the chip's anchor when it has one: realClick dispatches ON its
+    // element with no hit-testing, and Gmail's open handler lives on the
+    // anchor that fills the chip, not on the aZo wrapper.
+    for (const chip of Array.from(root.querySelectorAll(SEL.attachmentChip)).filter(isVisible)) {
+      const target = chip.matches("a[href]") ? chip : chip.querySelector("a[href]") || chip;
+      if (out.some((c) => c.element.contains(target) || target.contains(c.element))) continue;
+      out.push({ element: target, kind: "attachment", label: attachmentLabel(chip), detail: "" });
+    }
+
+    // Structural fallback if Gmail renames the chip classes: per-attachment
+    // labeled controls ("Download attachment …", "Preview attachment …").
+    // Never toolbar controls — "Download all attachments" in a [gh] toolbar
+    // must not masquerade as a file when chips are simply absent.
+    if (!out.length) {
+      for (const el of Array.from(root.querySelectorAll('[role="button"], [role="link"]')).filter(isVisible)) {
+        if (el.closest(SEL.toolbars)) continue;
+        const label = controlLabel(el);
+        if (!/\battachment\b/i.test(label)) continue;
+        if (out.some((c) => c.element.contains(el) || el.contains(c.element))) continue;
+        out.push({ element: el, kind: "attachment", label, detail: "" });
+      }
+    }
+
+    // Links, scoped to message bodies when present so Gmail chrome never leaks in.
+    const bodies = Array.from(root.querySelectorAll(SEL.messageBody)).filter(isVisible);
+    const links = [];
+    for (const body of bodies.length ? bodies : [root]) {
+      for (const a of Array.from(body.querySelectorAll("a[href]")).filter(isVisible)) {
+        const href = a.getAttribute("href") || "";
+        if (!href || href === "#" || /^(mailto|tel|javascript):/i.test(href)) continue;
+        if (a.closest(SEL.attachmentChip)) continue; // already covered as an attachment
+        const kind = a.closest(SEL.signature) ? "signature" : a.closest(SEL.quotedText) ? "quoted" : "link";
+        links.push({ element: a, kind, label: linkLabel(a), detail: displayUrl(href), dest: destinationUrl(href), order: links.length });
+      }
+    }
+
+    // Same destination in body and signature/quote → keep the best-ranked one.
+    links.sort((x, y) => OPEN_RANK[x.kind] - OPEN_RANK[y.kind] || x.order - y.order);
+    const seen = new Set();
+    for (const l of links) {
+      if (seen.has(l.dest)) continue;
+      seen.add(l.dest);
+      out.push({ element: l.element, kind: l.kind, label: l.label, detail: l.detail });
+    }
+    return out;
+  }
+
   function openLinkOrAttachment(scope = document) {
-    const root = scope || document;
-    const candidates = Array.from(
-      root.querySelectorAll(
-        'a[href], [role="link"], [download], [aria-label], [data-tooltip], [title], [role="button"]'
-      )
-    ).filter(isVisible);
-    const target = candidates.find((el) => {
-      const href = el.getAttribute("href") || "";
-      if (href && !/^mailto:/i.test(href) && href !== "#") return true;
-      const label = controlLabel(el);
-      return /\b(attachment|download|open|preview)\b/i.test(label);
-    });
-    if (target) return realClick(target);
-    if (InboxKeys.toast) InboxKeys.toast("No link or attachment found", { kind: "warn" });
-    return false;
+    const candidates = extractOpenCandidates(scope);
+    if (!candidates.length) {
+      if (InboxKeys.toast) InboxKeys.toast("No link or attachment found", { kind: "warn" });
+      return false;
+    }
+    const strong = candidates.filter((c) => c.kind === "attachment" || c.kind === "link");
+    // One candidate, or one strong candidate above the boilerplate: just open it.
+    if (candidates.length === 1) return realClick(candidates[0].element);
+    if (strong.length === 1) return realClick(strong[0].element);
+    if (InboxKeys.palette && InboxKeys.palette.choose) {
+      InboxKeys.palette.choose({
+        placeholder: "Filter links and attachments…",
+        prompt: "Open",
+        items: candidates.map((c) => ({
+          id: "open-candidate",
+          title: c.label,
+          group: OPEN_GROUP[c.kind],
+          hint: c.detail,
+          searchText: c.detail + " " + c.kind,
+          run: () => realClick(c.element),
+        })),
+      });
+      return true;
+    }
+    return realClick((strong[0] || candidates[0]).element);
   }
 
   function openLabelMenu() {
@@ -841,6 +980,7 @@ window.InboxKeys = window.InboxKeys || {};
     mute,
     unsubscribe,
     openLinkOrAttachment,
+    extractOpenCandidates,
     openLabelMenu,
     removeLabel,
     removeAllLabels,

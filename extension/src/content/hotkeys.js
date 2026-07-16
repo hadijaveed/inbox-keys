@@ -251,6 +251,13 @@ window.InboxKeys = window.InboxKeys || {};
       if (e.key === "Enter") { consume(e); palette.confirm(); return; }
       if (e.key === "Tab") { consume(e); palette.move(e.shiftKey ? -1 : 1); return; }
       if (e.key === "Escape") { consume(e); palette.hide(); return; }
+      // Our own Mod bindings must not fall through to the browser while the
+      // overlay is up (Cmd+O would pop Chrome's file dialog, Cmd+U view-source).
+      // Everything else passes so typing (and Cmd+C/V) reaches the filter input.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "o" || e.key === "O" || e.key === "u" || e.key === "U")) {
+        consume(e);
+        return;
+      }
       return;
     }
     if (!storage.get("hotkeysEnabled")) return;

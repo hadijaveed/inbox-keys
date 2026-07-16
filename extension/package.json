@@ -1,6 +1,6 @@
 {
   "name": "inboxkeys",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "private": true,
   "description": "Inbox Keys: Gmail command palette, hotkeys, split inbox & calendar (Chrome MV3 extension).",
   "scripts": {

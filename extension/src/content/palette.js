@@ -9,6 +9,7 @@ window.InboxKeys = window.InboxKeys || {};
   let items = [];
   let active = 0;
   let kbNavAt = 0; // timestamp of the last keyboard move, to ignore stray mouseenter
+  let chooseItems = null; // non-null → one-shot picker mode over these items instead of the command registry
 
   // --- tiny fuzzy matcher: subsequence match with a contiguity bonus ---
   function score(query, text) {
@@ -46,7 +47,7 @@ window.InboxKeys = window.InboxKeys || {};
       <div class="inboxkeys-modal" role="dialog" aria-label="Command palette">
         <div class="inboxkeys-input-row">
           <span class="inboxkeys-prompt"></span>
-          <input class="inboxkeys-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" />
+          <input class="inboxkeys-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" />
         </div>
         <div class="inboxkeys-results"></div>
         <div class="inboxkeys-footer">
@@ -101,9 +102,8 @@ window.InboxKeys = window.InboxKeys || {};
 
   function render(keepQuery) {
     const q = input.value.trim();
-    const scored = commands
-      .all()
-      .map((cmd) => ({ cmd, s: score(q, title(cmd) + " " + (cmd.group || "")) }))
+    const scored = (chooseItems || commands.all())
+      .map((cmd) => ({ cmd, s: score(q, title(cmd) + " " + (cmd.searchText || "") + " " + (cmd.group || "")) }))
       .filter((x) => x.s > 0)
       .sort((a, b) => b.s - a.s);
     items = scored.map((x) => x.cmd);
@@ -165,18 +165,34 @@ window.InboxKeys = window.InboxKeys || {};
     }, 30);
   }
 
-  function show() {
+  function openWith(placeholder, promptLabel) {
     build();
     open = true;
     root.classList.add("inboxkeys-overlay--open");
+    input.placeholder = placeholder;
+    root.querySelector(".inboxkeys-prompt").textContent = promptLabel;
     input.value = "";
     render();
     setTimeout(() => input.focus(), 0);
   }
 
+  function show() {
+    chooseItems = null;
+    openWith("Type a command or search…", keyLabel("Mod+K"));
+  }
+
+  // One-shot picker over arbitrary command-shaped items ({title, group, hint,
+  // searchText, run}) — same overlay, fuzzy filter, and engine key routing as
+  // the command palette (isOpen() covers both, so hotkeys.js needs nothing new).
+  function choose(opts) {
+    chooseItems = (opts && opts.items) || [];
+    openWith((opts && opts.placeholder) || "Filter…", (opts && opts.prompt) || "");
+  }
+
   function hide() {
     if (!root) return;
     open = false;
+    chooseItems = null;
     root.classList.remove("inboxkeys-overlay--open");
     input.blur();
   }
@@ -189,5 +205,5 @@ window.InboxKeys = window.InboxKeys || {};
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  InboxKeys.palette = { show, hide, toggle, isOpen: () => open, move, confirm };
+  InboxKeys.palette = { show, hide, toggle, choose, isOpen: () => open, move, confirm };
 })();
