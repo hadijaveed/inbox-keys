@@ -84,6 +84,14 @@ window.InboxKeys = window.InboxKeys || {};
     // structural fallback if the aZo class is renamed.
     attachmentChip: "span.aZo, [download_url]",
     attachmentName: ".aV3",
+    // per-message kebab ("More") in an expanded card header — the ONLY Gmail
+    // control that forwards a SPECIFIC message. Its label varies across Gmail
+    // builds ("More message options" vs "More email options"); both spellings
+    // are registered. It is hover-gated, so callers hover the header first.
+    messageMenuButton:
+      '[aria-label="More message options"], [data-tooltip="More message options"], [aria-label="More email options"], [data-tooltip="More email options"]',
+    menu: '[role="menu"]',
+    menuItem: '[role="menuitem"], .J-N',
     // structural shape of an open conversation, for when [data-message-id]
     // is renamed: a message card header or a message body inside main.
     threadFallback: '[role="main"] [role="listitem"] .gE, [role="main"] .a3s',
@@ -711,13 +719,254 @@ window.InboxKeys = window.InboxKeys || {};
     setTimeout(() => waitFor(find, onFound, onGiveUp, tries - 1, interval), interval);
   }
 
-  function forwardThread() {
-    return clickOr(
-      amsButton(/^forward\b/i) ||
-        labeledButton([/^Forward\b/i]) ||
-        exactButton("Forward"),
-      "Forward"
+  // ---- Forward (f) ---------------------------------------------------------
+  // Gmail's bottom inline "Forward" link forwards ONLY the LAST message of the
+  // conversation, carrying only THAT message's attachments. The quoted text of
+  // the whole thread rides along, so the draft LOOKS complete while attachments
+  // on earlier messages are silently dropped — the reported "recipients didn't
+  // get the files". Forward is therefore message-aware:
+  //   • j/k cursor on an earlier card → forward THAT message via its own kebab
+  //     menu (the only Gmail control with per-message identity);
+  //   • attachments confined to the target, or absent from every inspectable
+  //     card → the bottom inline Forward, exactly as before;
+  //   • attachments known on OTHER messages, or collapsed cards whose chips we
+  //     cannot see → a picker (palette.choose) listing every message with its
+  //     attachment count, so the attachment-less one can never win silently.
+  // The old labeledButton(/^Forward\b/) fallback is gone: it prefix-matched
+  // "Forward all" and other strays document-wide. Never reintroduce it.
+
+  function inlineForward(scope = document) {
+    return amsButton(/^forward$/i, scope) || exactButton("Forward", scope);
+  }
+
+  function threadCards() {
+    const main = firstVisible(SEL.main);
+    if (!main) return [];
+    return Array.from(main.querySelectorAll(SEL.card)).filter(
+      (card) => isVisible(card) && card.querySelector(SEL.cardHeader)
     );
+  }
+
+  function isExpandedCard(card) {
+    return Array.from(card.querySelectorAll(SEL.messageBody + ", [data-message-id]")).some(isVisible);
+  }
+
+  // Distinct visible attachment chips on one card. The two chip selectors can
+  // match nested elements of the same chip — count each chip once.
+  function cardAttachmentChips(card) {
+    const kept = [];
+    for (const chip of Array.from(card.querySelectorAll(SEL.attachmentChip)).filter(isVisible)) {
+      if (kept.some((c) => c.contains(chip) || chip.contains(c))) continue;
+      kept.push(chip);
+    }
+    return kept;
+  }
+
+  function cardTitle(card) {
+    const header = card.querySelector(SEL.cardHeader);
+    const text = ((header && header.textContent) || "").trim().replace(/\s+/g, " ");
+    if (!text) return "Message";
+    return text.length > 70 ? text.slice(0, 69) + "…" : text;
+  }
+
+  // The kebab in the card's own header. Scoped to the card, so the
+  // conversation-toolbar "More email options" (which has NO per-message
+  // Forward item) can never be confused with it.
+  function cardMenuButton(card) {
+    return (
+      Array.from(card.querySelectorAll(SEL.messageMenuButton))
+        .filter(isVisible)
+        .filter((el) => !el.closest(SEL.toolbars))[0] || null
+    );
+  }
+
+  // The EXACT "Forward" item of a showing menu. Exact, never a prefix match:
+  // "Forward all" and "Forward as attachment" are different actions with
+  // different attachment semantics. `excludeShowing` holds menus that were
+  // ALREADY showing before we clicked the kebab (a stale menu under the
+  // palette could belong to another card — its Forward would target the wrong
+  // message). Gmail recycles hidden menu containers, so only menus that were
+  // showing at snapshot time are excluded.
+  function showingMenus() {
+    return Array.from(document.querySelectorAll(SEL.menu)).filter(isShowing);
+  }
+
+  function menuForwardItem(excludeShowing) {
+    for (const menu of showingMenus()) {
+      if (excludeShowing && excludeShowing.has(menu)) continue;
+      const item = Array.from(menu.querySelectorAll(SEL.menuItem))
+        .filter(isVisible)
+        .find((el) => controlLabel(el).toLowerCase() === "forward");
+      if (item) return item;
+    }
+    return null;
+  }
+
+  function forwardFail(what) {
+    if (InboxKeys.toast) InboxKeys.toast(`Gmail control not found: ${what}`, { kind: "warn" });
+    return false;
+  }
+
+  // Forward one SPECIFIC message: expand it if collapsed, hover its header (the
+  // kebab is hover-gated), open its kebab menu, click the exact "Forward" item.
+  function forwardMessage(card) {
+    // A card can detach while the picker is open (Gmail re-renders threads in
+    // the background); clicking a detached node times out with misleading
+    // toasts, so say what actually happened.
+    if (!card || !card.isConnected) {
+      if (InboxKeys.toast) InboxKeys.toast("The thread changed — press f again", { kind: "warn" });
+      return false;
+    }
+    const openMenu = () => {
+      hover(card.querySelector(SEL.cardHeader) || card);
+      waitFor(
+        () => cardMenuButton(card),
+        (kebab) => {
+          // Snapshot menus already showing: a stale menu (possibly another
+          // card's) must never donate its Forward item to this message.
+          const stale = new Set(showingMenus());
+          hover(kebab);
+          realClick(kebab);
+          waitFor(
+            () => menuForwardItem(stale),
+            (item) => {
+              realClick(item);
+              focusReplyBodySoon();
+            },
+            () => {
+              // Close a menu we actually opened; if none is showing, a second
+              // kebab click would OPEN one over the thread — skip it then.
+              if (showingMenus().some((m) => !stale.has(m))) realClick(kebab);
+              forwardFail("Forward (message menu item)");
+            },
+            8,
+            80
+          );
+        },
+        () => forwardFail("Forward (message menu)"),
+        8,
+        80
+      );
+      return true;
+    };
+    if (isExpandedCard(card)) return openMenu();
+    const header = card.querySelector(SEL.cardHeader);
+    if (!header) return forwardFail("Forward (message)");
+    realClick(header); // expand the collapsed message first
+    waitFor(() => (isExpandedCard(card) ? card : null), openMenu, () => forwardFail("Forward (expand message)"), 12, 100);
+    return true;
+  }
+
+  // Forward the last message: the bottom inline "Forward" is Gmail's own
+  // control for exactly that; the card's kebab is the structural fallback.
+  function forwardLastMessage(last) {
+    const el = inlineForward(firstVisible(SEL.main) || document);
+    if (el) {
+      realClick(el);
+      focusReplyBodySoon();
+      return true;
+    }
+    return forwardMessage(last);
+  }
+
+  // A draft open INSIDE the conversation (blurred — a focused one classifies
+  // as compose, so f types normally and never reaches here). Scoped to main:
+  // a background standalone compose popup or a docked Chat box also matches
+  // SEL.composeBody document-wide but does not remove the thread's Forward
+  // controls, and must not block forwarding.
+  function threadInlineDraft() {
+    if (!inThread()) return null;
+    const main = firstVisible(SEL.main);
+    if (!main) return null;
+    return Array.from(main.querySelectorAll(SEL.composeBody)).filter(isVisible).pop() || null;
+  }
+
+  function forwardThread(scope = document) {
+    // With an inline draft open the bottom .ams links are gone from the DOM,
+    // and the old document-wide scan clicked arbitrary "Forward…"-labeled
+    // things. Refuse loudly instead of guessing.
+    if (threadInlineDraft()) {
+      if (InboxKeys.toast) InboxKeys.toast("Close the open draft first (Escape), then forward", { kind: "warn" });
+      return false;
+    }
+
+    const cards = threadCards();
+    if (!cards.length) return clickOr(inlineForward(), "Forward");
+
+    const last = cards[cards.length - 1];
+    const target = scope && scope !== document && cards.indexOf(scope) >= 0 ? scope : last;
+
+    // Cursor parked on an EARLIER message: explicit — forward that one.
+    if (target !== last) return forwardMessage(target);
+
+    // Default target (the last message): only forward directly when we can SEE
+    // that no other message carries attachments. A collapsed card hides its
+    // chips, and a collapsed "N older messages" stack hides whole messages —
+    // both count as "may have attachments".
+    const infos = cards.map((card) => ({
+      card,
+      expanded: isExpandedCard(card),
+      attachments: cardAttachmentChips(card).length,
+    }));
+    const hiddenStacks =
+      InboxKeys.threadnav && InboxKeys.threadnav.hiddenMessageControls
+        ? InboxKeys.threadnav.hiddenMessageControls()
+        : [];
+    const ambiguous =
+      hiddenStacks.length > 0 || infos.some((i) => i.card !== last && (i.attachments > 0 || !i.expanded));
+    if (!ambiguous) return forwardLastMessage(last);
+
+    if (InboxKeys.palette && InboxKeys.palette.choose) {
+      // Messages with known attachments first (newest first within each tier,
+      // sort is stable) — so f, Enter forwards the message that has the files.
+      const ranked = infos
+        .slice()
+        .reverse()
+        .sort((x, y) => (y.attachments > 0 ? 1 : 0) - (x.attachments > 0 ? 1 : 0));
+      const items = ranked.map(({ card, expanded, attachments }) => ({
+        id: "forward-message",
+        title: cardTitle(card),
+        group: attachments > 0 ? "Messages with attachments" : "Messages",
+        hint:
+          attachments > 0
+            ? `${attachments} attachment${attachments === 1 ? "" : "s"}`
+            : expanded
+              ? "no attachments"
+              : "collapsed — attachments unknown",
+        searchText: attachments > 0 ? "attachment" : "",
+        run: () => (card === last ? forwardLastMessage(last) : forwardMessage(card)),
+      }));
+      // The collapsed stack hides whole messages: offer to reveal them, then
+      // re-run forward so the picker reopens with every message listed. Each
+      // expansion strictly grows the card list, so this cannot loop.
+      for (const stack of hiddenStacks) {
+        items.push({
+          id: "forward-message",
+          title: (stack.textContent || "").trim().replace(/\s+/g, " ") || "Hidden messages",
+          group: "Messages",
+          hint: "expand to inspect attachments",
+          searchText: "hidden older messages expand",
+          run: () => {
+            const count = cards.length;
+            realClick(stack);
+            waitFor(
+              () => (threadCards().length > count ? true : null),
+              () => forwardThread(document),
+              () => forwardFail("Forward (show hidden messages)"),
+              12,
+              100
+            );
+          },
+        });
+      }
+      InboxKeys.palette.choose({
+        placeholder: "Forward which message?",
+        prompt: "Forward",
+        items,
+      });
+      return true;
+    }
+    return forwardLastMessage(last);
   }
 
   // Older = next (further down the list), Newer = previous.
@@ -997,6 +1246,7 @@ window.InboxKeys = window.InboxKeys || {};
     replyToThread,
     replyAllToThread,
     forwardThread,
+    forwardMessage,
     nextThread,
     prevThread,
     nextPage,

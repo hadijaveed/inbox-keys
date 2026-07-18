@@ -2099,7 +2099,14 @@ function wireInlineActions(w, opts = {}) {
   const w = load(threadFixture(), "#inbox/" + ID);
   const toasts = [];
   w.InboxKeys.toast = (msg) => { toasts.push(String(msg)); };
+  // The kebab fallback polls via waitFor before giving up; capture the timers
+  // so the give-up toast fires inside the test.
+  const timers = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn) => { timers.push(fn); return 0; };
   const f = press(w, "f", { target: w.document.body });
+  for (let i = 0; i < 200 && timers.length; i++) timers.shift()();
+  w.setTimeout = realSetTimeout;
   assert.equal(f.defaultPrevented, true, "f is claimed in thread view");
   assert.equal(
     toasts.some((t) => /not found: Forward/.test(t)),
@@ -2345,6 +2352,360 @@ function wireArchiveRecorder(w, archived) {
   rows(w)[2].dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
   press(w, "e", { target: w.document.body });
   assert.deepEqual(archived, ["three"], "a real hover (with mousemove) still targets the hovered row");
+}
+
+// ---- Forward (f): message-aware, attachment-safe ---------------------------
+// Gmail's bottom inline "Forward" forwards ONLY the last message with only THAT
+// message's attachments; earlier messages' files are silently dropped (the
+// "recipients didn't get the attachments" report). f now targets the focused
+// card, forwards a specific message through its own kebab menu (exact "Forward"
+// item, never "Forward all" / "Forward as attachment"), and opens a picker when
+// attachments live on other messages.
+
+const FORWARD_LAST_HAS_CHIPS = `
+  <div role="main">
+    <div role="listitem" data-card="first">
+      <div class="gE">Ann Mon</div>
+      <div class="a3s" data-message-id="m1">first body</div>
+    </div>
+    <div role="listitem" data-card="second">
+      <div class="gE">Bob Tue</div>
+      <div class="a3s" data-message-id="m2">second body</div>
+      <span class="aZo"><a href="#att-report">report.pdf</a></span>
+    </div>
+    <span class="ams bkG">Forward</span>
+  </div>`;
+
+const FORWARD_EARLIER_CHIPS = `
+  <div role="main">
+    <div role="listitem" data-card="first">
+      <div class="gE">Ann Mon <div role="button" aria-label="More message options" data-kebab="first"></div></div>
+      <div class="a3s" data-message-id="m1">first body</div>
+      <span class="aZo"><a href="#att-deck">deck.pptx</a></span>
+      <span class="aZo"><a href="#att-notes">notes.docx</a></span>
+    </div>
+    <div role="listitem" data-card="second">
+      <div class="gE">Bob Tue <div role="button" aria-label="More email options" data-kebab="second"></div></div>
+      <div class="a3s" data-message-id="m2">thanks, got it</div>
+    </div>
+    <span class="ams bkG">Forward</span>
+  </div>`;
+
+const FORWARD_COLLAPSED_EARLIER = `
+  <div role="main">
+    <div role="listitem" data-card="first">
+      <div class="gE">Ann Mon <div role="button" aria-label="More message options" data-kebab="first"></div></div>
+    </div>
+    <div role="listitem" data-card="second">
+      <div class="gE">Bob Tue <div role="button" aria-label="More email options" data-kebab="second"></div></div>
+      <div class="a3s" data-message-id="m2">second body</div>
+    </div>
+  </div>`;
+
+// Kebab menus mimic real Gmail: clicking the per-message "More" button opens a
+// [role=menu] at document level whose items are plain-text menuitems, including
+// the "Forward all" / "Forward as attachment" decoys that a prefix match would
+// wrongly hit. Choosing "Forward" opens a composer, like Gmail.
+function wireKebab(w, kebab) {
+  kebab.addEventListener("click", () => {
+    const existing = w.document.querySelector('[role="menu"][data-kebab-menu]');
+    if (existing) {
+      existing.remove(); // second click toggles the menu closed
+      return;
+    }
+    w.__kebabClicked = kebab.getAttribute("data-kebab");
+    const menu = w.document.createElement("div");
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("data-kebab-menu", "true");
+    menu.innerHTML =
+      '<div role="menuitem">Reply</div>' +
+      '<div role="menuitem">Forward as attachment</div>' +
+      '<div role="menuitem">Forward all</div>' +
+      '<div role="menuitem">Forward</div>' +
+      '<div role="menuitem">Delete this message</div>';
+    for (const item of menu.querySelectorAll('[role="menuitem"]')) {
+      item.addEventListener("click", () => {
+        const label = (item.textContent || "").trim();
+        if (label === "Forward") {
+          w.__menuClicked = label;
+          menu.remove();
+          if (!w.document.querySelector('[aria-label="Message Body"]')) {
+            const surface = w.document.createElement("div");
+            surface.innerHTML = '<div aria-label="Message Body" contenteditable="true" role="textbox"></div>';
+            w.document.querySelector('[role="main"]').appendChild(surface);
+          }
+        } else {
+          w.__menuDecoysClicked = (w.__menuDecoysClicked || []).concat(label);
+        }
+      });
+    }
+    w.document.body.appendChild(menu);
+  });
+}
+
+function wireForwardKebabs(w) {
+  for (const kebab of w.document.querySelectorAll("[data-kebab]")) wireKebab(w, kebab);
+}
+
+// Single-message thread: f clicks the inline Forward directly — no picker, no
+// menus, same one-keystroke behavior as always (its attachments ride along).
+{
+  const w = load(THREAD_MULTI_RECIPIENT, "#inbox/" + ID);
+  wireInlineActions(w);
+  const f = press(w, "f", { target: w.document.body });
+  assert.equal(f.defaultPrevented, true, "f is claimed in thread view");
+  assert.equal(w.__clickedAction, "Forward", "single-message thread forwards via the inline Forward in one step");
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "no picker when there is nothing to choose");
+}
+
+// Attachments only on the LAST message: inline Forward already carries them, so
+// f stays a single keystroke.
+{
+  const w = load(FORWARD_LAST_HAS_CHIPS, "#inbox/" + ID);
+  wireInlineActions(w);
+  press(w, "f", { target: w.document.body });
+  assert.equal(w.__clickedAction, "Forward", "attachments on the last message: direct inline Forward");
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "no picker needed");
+}
+
+// Attachments on an EARLIER message: f opens the picker with the attachment
+// message ranked first; Enter forwards THAT message via its own kebab menu,
+// clicking the exact "Forward" item and never the decoys.
+{
+  const w = load(FORWARD_EARLIER_CHIPS, "#inbox/" + ID);
+  wireInlineActions(w);
+  wireForwardKebabs(w);
+  const f = press(w, "f", { target: w.document.body });
+  assert.equal(f.defaultPrevented, true, "f is claimed");
+  assert.equal(w.InboxKeys.palette.isOpen(), true, "attachments on an earlier message open the forward picker");
+  assert.equal(w.__clickedAction, undefined, "nothing is forwarded before the user chooses");
+
+  const timers = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn) => { timers.push(fn); return 0; };
+  press(w, "Enter");
+  for (let i = 0; i < 50 && timers.length; i++) timers.shift()();
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(w.__kebabClicked, "first", "the attachment-bearing message ranks first and its kebab is opened");
+  assert.equal(w.__menuClicked, "Forward", "the exact Forward menu item is clicked");
+  assert.equal(w.__menuDecoysClicked, undefined, "Forward all / Forward as attachment are never clicked");
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "the picker closes after choosing");
+}
+
+// Cursor moved to an earlier message: explicit — f forwards that message
+// directly through its kebab, no picker.
+{
+  const w = load(FORWARD_EARLIER_CHIPS, "#inbox/" + ID);
+  wireInlineActions(w);
+  wireForwardKebabs(w);
+  press(w, "ArrowUp", { target: w.document.body }); // card cursor → first message
+  press(w, "f", { target: w.document.body });
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "an explicit cursor skips the picker");
+  assert.equal(w.__kebabClicked, "first", "f forwards the cursored message via its kebab");
+  assert.equal(w.__menuClicked, "Forward", "the exact Forward item is clicked");
+  assert.equal(w.__clickedAction, undefined, "the bottom inline Forward (last message) is NOT clicked");
+}
+
+// A COLLAPSED earlier message hides its attachment chips, so its attachments
+// are unknown — the picker must appear, and choosing the collapsed message
+// expands it first, then forwards it through its kebab.
+{
+  const w = load(FORWARD_COLLAPSED_EARLIER, "#inbox/" + ID);
+  wireForwardKebabs(w);
+  const firstCard = w.document.querySelector('[data-card="first"]');
+  firstCard.querySelector(".gE").addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest("[data-kebab]")) return;
+    if (!firstCard.querySelector(".a3s")) {
+      w.__expandedCard = "first";
+      const body = w.document.createElement("div");
+      body.className = "a3s";
+      body.setAttribute("data-message-id", "m1");
+      body.textContent = "first body";
+      firstCard.appendChild(body);
+    }
+  });
+
+  press(w, "f", { target: w.document.body });
+  assert.equal(w.InboxKeys.palette.isOpen(), true, "a collapsed earlier message forces the picker (attachments unknown)");
+
+  const timers = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn) => { timers.push(fn); return 0; };
+  press(w, "ArrowDown"); // rows are newest-first; second row is the collapsed message
+  press(w, "Enter");
+  for (let i = 0; i < 50 && timers.length; i++) timers.shift()();
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(w.__expandedCard, "first", "choosing a collapsed message expands it first");
+  assert.equal(w.__kebabClicked, "first", "then its kebab menu is opened");
+  assert.equal(w.__menuClicked, "Forward", "and its exact Forward item is clicked");
+}
+
+// A draft already open (blurred): the inline chips are gone from the DOM and the
+// old document-wide scan clicked arbitrary Forward-labeled things. f must refuse
+// with a clear toast and click nothing.
+{
+  const w = load(replyFixture(), "#inbox/" + ID);
+  const toasts = [];
+  w.InboxKeys.toast = (msg) => { toasts.push(String(msg)); };
+  const f = press(w, "f", { target: w.document.body });
+  assert.equal(f.defaultPrevented, true, "f is claimed");
+  assert.equal(
+    toasts.some((t) => /Close the open draft/.test(t)),
+    true,
+    "an open draft refuses the forward with a clear toast instead of clicking around it"
+  );
+  assert.equal(w.InboxKeys.palette.isOpen(), false, "no picker over an open draft");
+}
+
+// The draft guard is scoped to the conversation: a background standalone
+// compose popup (or docked Chat box) lives OUTSIDE role=main and must not
+// block forwarding the thread.
+{
+  const w = load(
+    THREAD_MULTI_RECIPIENT +
+      '<div class="popup-compose"><div aria-label="Message Body" contenteditable="true" role="textbox"></div></div>',
+    "#inbox/" + ID
+  );
+  wireInlineActions(w);
+  press(w, "f", { target: w.document.body });
+  assert.equal(w.__clickedAction, "Forward", "a compose surface outside main must not block the thread forward");
+}
+
+// A collapsed "N older messages" stack hides whole messages, so the forward
+// target is ambiguous even when every visible card is chip-free. The picker
+// offers to reveal the stack; choosing it expands and re-opens the picker with
+// the revealed (attachment-bearing) message ranked first.
+{
+  const w = load(
+    `
+    <div role="main">
+      <div role="listitem" data-card="first">
+        <div class="gE">Ann Mon <div role="button" aria-label="More message options" data-kebab="first"></div></div>
+        <div class="a3s" data-message-id="m1">first body</div>
+      </div>
+      <button aria-expanded="false" data-stack="mid">2 older messages</button>
+      <div role="listitem" data-card="last">
+        <div class="gE">Bob Tue <div role="button" aria-label="More email options" data-kebab="last"></div></div>
+        <div class="a3s" data-message-id="m3">last body</div>
+      </div>
+      <span class="ams bkG">Forward</span>
+    </div>`,
+    "#inbox/" + ID
+  );
+  wireInlineActions(w);
+  wireForwardKebabs(w);
+  const stack = w.document.querySelector("[data-stack]");
+  stack.addEventListener("click", () => {
+    const revealed = w.document.createElement("div");
+    revealed.setAttribute("role", "listitem");
+    revealed.setAttribute("data-card", "revealed");
+    revealed.innerHTML =
+      '<div class="gE">Cara Mon <div role="button" aria-label="More message options" data-kebab="revealed"></div></div>' +
+      '<div class="a3s" data-message-id="m2">revealed body</div>' +
+      '<span class="aZo"><a href="#att-brief">brief.pdf</a></span>';
+    stack.replaceWith(revealed);
+    wireKebab(w, revealed.querySelector("[data-kebab]"));
+  });
+
+  press(w, "f", { target: w.document.body });
+  assert.equal(w.InboxKeys.palette.isOpen(), true, "a hidden message stack forces the picker");
+  assert.equal(w.__clickedAction, undefined, "nothing is forwarded before the user chooses");
+
+  const timers = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn) => { timers.push(fn); return 0; };
+  press(w, "ArrowDown"); // rows: last, first, then the stack row
+  press(w, "ArrowDown");
+  press(w, "Enter");
+  for (let i = 0; i < 50 && timers.length; i++) timers.shift()();
+
+  assert.equal(w.document.querySelector('[data-card="revealed"]') !== null, true, "choosing the stack row reveals the hidden messages");
+  assert.equal(w.InboxKeys.palette.isOpen(), true, "the picker reopens over the full message list");
+
+  press(w, "Enter"); // revealed message has the only known attachments → ranked first
+  for (let i = 0; i < 50 && timers.length; i++) timers.shift()();
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(w.__kebabClicked, "revealed", "the revealed attachment message is ranked first and forwarded via its kebab");
+  assert.equal(w.__menuClicked, "Forward", "its exact Forward item is clicked");
+}
+
+// A stale menu already showing (e.g. under the palette) must never donate its
+// Forward item: forwardMessage snapshots showing menus and only accepts an item
+// from the menu its own kebab click opened.
+{
+  const w = load(FORWARD_EARLIER_CHIPS, "#inbox/" + ID);
+  wireForwardKebabs(w);
+  const decoy = w.document.createElement("div");
+  decoy.setAttribute("role", "menu");
+  decoy.innerHTML = '<div role="menuitem">Forward</div>';
+  decoy.querySelector('[role="menuitem"]').addEventListener("click", () => {
+    w.__decoyForwardClicked = true;
+  });
+  w.document.body.appendChild(decoy);
+
+  w.InboxKeys.gmail.forwardMessage(w.document.querySelector('[data-card="first"]'));
+
+  assert.equal(w.__kebabClicked, "first", "the target card's kebab is opened");
+  assert.equal(w.__menuClicked, "Forward", "the Forward item of the NEW menu is clicked");
+  assert.equal(w.__decoyForwardClicked, undefined, "a stale pre-existing menu's Forward is never clicked");
+}
+
+// When the kebab click fails to open a menu at all, the give-up path must NOT
+// click the kebab again (that would OPEN a menu over the thread after polling
+// stopped) — it toasts and leaves the DOM alone.
+{
+  const w = load(FORWARD_EARLIER_CHIPS, "#inbox/" + ID);
+  const toasts = [];
+  w.InboxKeys.toast = (msg) => { toasts.push(String(msg)); };
+  let kebabClicks = 0;
+  const kebab = w.document.querySelector('[data-kebab="first"]');
+  kebab.addEventListener("click", () => { kebabClicks += 1; }); // opens nothing
+
+  const timers = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn) => { timers.push(fn); return 0; };
+  w.InboxKeys.gmail.forwardMessage(w.document.querySelector('[data-card="first"]'));
+  for (let i = 0; i < 200 && timers.length; i++) timers.shift()();
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(kebabClicks, 1, "the kebab is clicked once — no second click that would open a dangling menu");
+  assert.equal(
+    toasts.some((t) => /not found: Forward \(message menu item\)/.test(t)),
+    true,
+    "the give-up path toasts the failing stage"
+  );
+  assert.equal(w.document.querySelector('[role="menu"]'), null, "no menu is left over the thread");
+}
+
+// A message card can detach while the picker is open (Gmail background
+// re-render). Choosing it must fail fast with a clear toast, not time out.
+{
+  const w = load(FORWARD_EARLIER_CHIPS, "#inbox/" + ID);
+  wireInlineActions(w);
+  wireForwardKebabs(w);
+  const toasts = [];
+  w.InboxKeys.toast = (msg) => { toasts.push(String(msg)); };
+
+  press(w, "f", { target: w.document.body });
+  assert.equal(w.InboxKeys.palette.isOpen(), true, "picker opens");
+  w.document.querySelector('[data-card="first"]').remove(); // Gmail re-renders underneath
+
+  const timers = [];
+  const realSetTimeout = w.setTimeout;
+  w.setTimeout = (fn) => { timers.push(fn); return 0; };
+  press(w, "Enter"); // the detached attachment message was the ranked-first row
+  for (let i = 0; i < 50 && timers.length; i++) timers.shift()();
+  w.setTimeout = realSetTimeout;
+
+  assert.equal(
+    toasts.some((t) => /thread changed/i.test(t)),
+    true,
+    "a detached card fails fast with a clear toast"
+  );
+  assert.equal(w.__kebabClicked, undefined, "no kebab is clicked for a detached card");
 }
 
 console.log("hotkey integration tests passed");

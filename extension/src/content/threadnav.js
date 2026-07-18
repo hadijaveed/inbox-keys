@@ -125,6 +125,15 @@ window.InboxKeys = window.InboxKeys || {};
     return c[idx] || null;
   }
 
+  // Controls that stand for HIDDEN messages — the collapsed "N older messages"
+  // stack BETWEEN cards. Forward consults this: a hidden message may carry
+  // attachments no DOM probe can see, so its presence makes the forward target
+  // ambiguous.
+  function hiddenMessageControls() {
+    const c = cards();
+    return expansionControls().filter((el) => !c.some((card) => card.contains(el)));
+  }
+
   // Move the cursor one card in `dir` and paint the indicator. Returns true if it
   // actually moved; false when there's nowhere to go (a single card, or already at
   // the first/last) so the caller can fall back to scrolling the reading pane.
@@ -222,5 +231,5 @@ window.InboxKeys = window.InboxKeys || {};
 
   window.addEventListener("hashchange", reset);
 
-  InboxKeys.threadnav = { move, moveArrow, toggleFocused, replyAllFocused, activateFocused, toggle, expandAllToggle, currentCard, reset };
+  InboxKeys.threadnav = { move, moveArrow, toggleFocused, replyAllFocused, activateFocused, toggle, expandAllToggle, currentCard, hiddenMessageControls, reset };
 })();

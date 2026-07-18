@@ -202,4 +202,35 @@ assert.match(
   "restoreReturn must guard its re-pin on keyNavSeq (keyboard), not evSeq (which mouseover bumps)"
 );
 
+// Forward (f) attachment safety. The bottom inline Forward only forwards the
+// LAST message with only its own attachments, so forward must be message-aware:
+// the exact-match inline lookup, the scoped command wiring, and the per-message
+// kebab path are each pinned; the old document-wide /^Forward\b/ prefix scan
+// (which matched "Forward all") must never come back.
+assert.match(
+  gmailSource,
+  /amsButton\(\/\^forward\$\/i/,
+  "The inline Forward lookup must be an exact match (never 'Forward all')"
+);
+assert.doesNotMatch(
+  gmailSource,
+  /labeledButton\(\[\/\^Forward/,
+  "The document-wide Forward prefix scan must not be reintroduced"
+);
+assert.match(
+  gmailSource,
+  /controlLabel\(el\)\.toLowerCase\(\) === "forward"/,
+  "The kebab-menu Forward item must be matched exactly, not by prefix"
+);
+assert.match(
+  gmailSource,
+  /messageMenuButton:\s*\n?\s*'\[aria-label="More message options"\], \[data-tooltip="More message options"\], \[aria-label="More email options"\], \[data-tooltip="More email options"\]'/,
+  "Both kebab label spellings must stay pinned in the registry"
+);
+assert.match(
+  fs.readFileSync(path.join(root, "src/content/commands.js"), "utf8"),
+  /forwardThread\(InboxKeys\.threadnav\.currentCard\(\) \|\| document\)/,
+  "The forward command must pass the focused message card, like reply-all"
+);
+
 console.log("key behavior simulations passed");
