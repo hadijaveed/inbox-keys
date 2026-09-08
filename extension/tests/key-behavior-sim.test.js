@@ -233,4 +233,30 @@ assert.match(
   "The forward command must pass the focused message card, like reply-all"
 );
 
+// Compose-body lookup. Gemini's "Describe your message" box shares the bare
+// [contenteditable][role=textbox] shape and sits AFTER the real editor, so the
+// old "last visible SEL.composeBody match" returned it and Escape stopped
+// exiting replies. The lookup must prefer the focused editor, then Gmail's own
+// marked editors, and must exclude assistant prompts. Pin all three.
+assert.match(
+  gmailSource,
+  /composeBodyMarked:\s*'div\[aria-label="Message Body"\], div\[g_editable="true"\]'/,
+  "The marked compose-editor selector must stay in the registry"
+);
+assert.match(
+  gmailSource,
+  /ASSISTANT_TEXTBOX = \/describe your message\|help me write\|ask gmail\/i/,
+  "Assistant prompt textboxes must be excluded from the compose-body lookup"
+);
+assert.match(
+  gmailSource,
+  /editors\.find\(\(el\) => el === active \|\| el\.contains\(active\)\)/,
+  "composeBody must prefer the editor that owns focus"
+);
+assert.doesNotMatch(
+  gmailSource,
+  /querySelectorAll\(SEL\.composeBody\)\)\.filter\(isVisible\)\.pop\(\)/,
+  "No caller may take 'the last visible composeBody match' directly; go through composeBody()/composeEditors()"
+);
+
 console.log("key behavior simulations passed");

@@ -101,6 +101,11 @@ window.InboxKeys = window.InboxKeys || {};
     toolbars: '[gh="tm"], [gh="mtb"], [role="toolbar"]',
     searchInput: 'input[aria-label="Search mail"], input[name="q"]',
     composeBody: 'div[aria-label="Message Body"], div[g_editable="true"], [contenteditable="true"][role="textbox"]',
+    // the editors Gmail itself marks as a message body. The bare
+    // [contenteditable][role=textbox] shape above is a structural fallback only:
+    // Gemini's "Describe your message" (Help me write) box shares it. See
+    // composeEditors().
+    composeBodyMarked: 'div[aria-label="Message Body"], div[g_editable="true"]',
   };
 
   // First visible match for a selector, or null.
@@ -573,9 +578,52 @@ window.InboxKeys = window.InboxKeys || {};
   }
 
   // The active compose editor body (contenteditable).
-  function composeBody() {
-    const editors = Array.from(document.querySelectorAll(SEL.composeBody)).filter(isVisible);
-    return editors[editors.length - 1] || null;
+  // Textboxes that LOOK like a compose editor but are Gemini/assistant prompts
+  // (the "Describe your message" box under an open reply, "Help me write", the
+  // "Ask Gmail" prompt). Never treat one as the message body.
+  const ASSISTANT_TEXTBOX = /describe your message|help me write|ask gmail/i;
+  function isAssistantTextbox(el) {
+    const label = [
+      el.getAttribute("aria-label"),
+      el.getAttribute("aria-placeholder"),
+      el.getAttribute("data-placeholder"),
+      el.getAttribute("placeholder"),
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return ASSISTANT_TEXTBOX.test(label);
+  }
+
+  // Every visible compose editor in scope, real ones first. Gmail's own editors
+  // carry explicit markers (aria-label "Message Body" / g_editable); the bare
+  // [contenteditable][role=textbox] shape is only trusted when no marked editor
+  // exists, and assistant prompts are excluded outright.
+  function composeEditors(scope = document) {
+    const all = Array.from(scope.querySelectorAll(SEL.composeBody))
+      .filter(isVisible)
+      .filter((el) => !isAssistantTextbox(el));
+    const marked = all.filter((el) => el.matches(SEL.composeBodyMarked));
+    return marked.length ? marked : all;
+  }
+
+  // The compose editor that matters right now: the one that OWNS focus, else
+  // the last real editor in scope (the newest open reply / compose).
+  //
+  // This used to be "the last visible SEL.composeBody match". Gemini's
+  // "Describe your message" box renders UNDER an open reply, matches the
+  // structural [contenteditable][role=textbox] shape, and sits AFTER the real
+  // editor in the DOM — so it was returned as the compose body. Focus was in
+  // the real "Message Body", the returned body did not contain it, so
+  // hasOpenThreadReply() came back false, Escape fell through to nothing and
+  // the reply stayed open: the reported "Escape gets stuck in a thread" bug
+  // (verified live, Sep 2026). Preferring the focused editor and the marked
+  // selectors fixes it and keeps every other composeBody() caller (exitReply,
+  // discardDraft, the forward draft guard, Cmd+U attach) on the real editor.
+  function composeBody(scope = document) {
+    const editors = composeEditors(scope);
+    const active = document.activeElement;
+    const focused = active ? editors.find((el) => el === active || el.contains(active)) : null;
+    return focused || editors[editors.length - 1] || null;
   }
 
   function threadReplyBody() {
@@ -878,7 +926,7 @@ window.InboxKeys = window.InboxKeys || {};
     if (!inThread()) return null;
     const main = firstVisible(SEL.main);
     if (!main) return null;
-    return Array.from(main.querySelectorAll(SEL.composeBody)).filter(isVisible).pop() || null;
+    return composeBody(main);
   }
 
   function forwardThread(scope = document) {

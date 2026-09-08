@@ -2708,4 +2708,76 @@ function wireForwardKebabs(w) {
   assert.equal(w.__kebabClicked, undefined, "no kebab is clicked for a detached card");
 }
 
+
+// Gemini's "Describe your message" (Help me write) box renders UNDER an open
+// reply as a bare [contenteditable][role=textbox], AFTER the real editor in the
+// DOM. composeBody() used to return "the last visible editor" — that box — so
+// hasOpenThreadReply() saw focus in the real body but a body that didn't contain
+// it, Escape fell through to nothing and the reply stayed open: the reported
+// "Escape gets stuck" bug (verified live, Sep 2026). Escape must exit the reply
+// (first press) and only then go back to the list (second press).
+function replyWithGeminiFixture() {
+  return `
+    <div role="main">
+      <div role="listitem" data-card="only">
+        <div class="gE">header</div>
+        <div class="a3s" data-message-id="m1">message body</div>
+        <div class="reply-surface">
+          <div aria-label="Message Body" contenteditable="true" role="textbox" g_editable="true"></div>
+          <div class="gemini-prompt" aria-label="Describe your message" contenteditable="true" role="textbox"></div>
+          <div role="button" aria-label="Discard draft ‪(Ctrl-Shift-D)‬" data-tooltip="Discard draft ‪(Ctrl-Shift-D)‬"></div>
+        </div>
+      </div>
+    </div>`;
+}
+{
+  const w = load(replyWithGeminiFixture(), "#inbox/" + ID);
+  const body = w.document.querySelector('[aria-label="Message Body"]');
+  const gemini = w.document.querySelector(".gemini-prompt");
+  const surface = w.document.querySelector(".reply-surface");
+  w.document.querySelector('[aria-label^="Discard draft"]').addEventListener("click", () => {
+    w.__discardedReply = true;
+    surface.remove(); // Gmail tears the inline composer down
+  });
+  body.focus();
+
+  assert.equal(w.InboxKeys.gmail.composeBody(), body, "composeBody prefers the real Message Body over the Gemini prompt");
+  assert.notEqual(w.InboxKeys.gmail.composeBody(), gemini, "the Gemini prompt is never the compose body");
+  assert.equal(w.InboxKeys.gmail.hasOpenThreadReply(), true, "focus in the real editor counts as an open reply");
+
+  const first = press(w, "Escape", { target: body });
+  assert.equal(first.defaultPrevented, true, "first Escape is claimed to exit the reply");
+  assert.equal(w.__discardedReply, true, "first Escape discards the empty reply");
+  assert.equal(w.location.hash, "#inbox/" + ID, "first Escape does not navigate back yet");
+
+  const second = press(w, "Escape", { target: w.document.body });
+  assert.equal(second.defaultPrevented, true, "second Escape is claimed in thread view");
+  assert.equal(w.location.hash, "#inbox", "second Escape returns to the list");
+}
+
+// Even with no marked editor at all, an assistant prompt alone must not read as
+// an open compose (a stray Gemini box must not block thread shortcuts).
+{
+  const w = load(
+    threadFixture() + '<div aria-label="Describe your message" contenteditable="true" role="textbox"></div>',
+    "#inbox/" + ID
+  );
+  assert.equal(w.InboxKeys.gmail.composeBody(), null, "an assistant prompt alone is not a compose body");
+  const esc = press(w, "Escape", { target: w.document.body });
+  assert.equal(esc.defaultPrevented, true, "Escape is still claimed in thread view");
+  assert.equal(w.location.hash, "#inbox", "Escape goes back to the list");
+}
+
+// When two real editors are open (a reply plus a background compose popup), the
+// one that owns focus wins, whatever its DOM order.
+{
+  const w = load(
+    replyFixture() + '<div class="popup"><div aria-label="Message Body" contenteditable="true" role="textbox"></div></div>',
+    "#inbox/" + ID
+  );
+  const inline = w.document.querySelector('.reply-surface [aria-label="Message Body"]');
+  inline.focus();
+  assert.equal(w.InboxKeys.gmail.composeBody(), inline, "the focused editor wins over a later one in DOM order");
+}
+
 console.log("hotkey integration tests passed");
