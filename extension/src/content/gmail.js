@@ -168,13 +168,43 @@ window.InboxKeys = window.InboxKeys || {};
     return true;
   }
 
-  function findByTooltip(prefix) {
+  // Gmail renders toolbar icons (Archive, Delete, Snooze, ...) with NO aria-label
+  // and NO data-tooltip, and only fills them in on the first mouseover of a
+  // button. A freshly opened conversation therefore has a fully drawn but
+  // unlabeled toolbar until the real pointer crosses it, and every label-based
+  // lookup misses ("Gmail control not found: Archive") even though the button is
+  // right there. Gmail's native `e` is unaffected because it never needs the
+  // label. We navigate by keyboard and never move the pointer, so synthesize the
+  // hover (same trick as the per-row buttons) on any visible toolbar button that
+  // is still unlabeled. Labels appear synchronously inside the dispatched
+  // mouseover, so callers can simply look up again right after.
+  function primeToolbarLabels() {
+    let primed = 0;
+    const bars = Array.from(document.querySelectorAll(SEL.toolbars)).filter(isVisible);
+    for (const bar of bars) {
+      for (const btn of Array.from(bar.querySelectorAll('[role="button"]'))) {
+        if (btn.hasAttribute("aria-label") || btn.hasAttribute("data-tooltip")) continue;
+        if (!isVisible(btn)) continue;
+        hover(btn);
+        primed++;
+      }
+    }
+    return primed;
+  }
+
+  function queryTooltip(prefix) {
     const sel = [
       `[data-tooltip^="${prefix}"]`,
       `[aria-label^="${prefix}"]`,
       `[data-tooltip*="${prefix}"]`,
     ].join(",");
     return Array.from(document.querySelectorAll(sel)).filter(isVisible);
+  }
+
+  function findByTooltip(prefix) {
+    const hits = queryTooltip(prefix);
+    if (hits.length || !primeToolbarLabels()) return hits;
+    return queryTooltip(prefix);
   }
 
   function clickByTooltip(prefix) {
@@ -185,11 +215,13 @@ window.InboxKeys = window.InboxKeys || {};
 
   // First visible element whose aria-label / data-tooltip equals `label` exactly.
   function exactButton(label, scope = document) {
-    return (
+    const find = () =>
       Array.from(
         scope.querySelectorAll(`[aria-label="${label}"], [data-tooltip="${label}"]`)
-      ).filter(isVisible)[0] || null
-    );
+      ).filter(isVisible)[0] || null;
+    const hit = find();
+    if (hit || scope !== document || !primeToolbarLabels()) return hit;
+    return find();
   }
 
   function buttonLabel(el) {
@@ -231,6 +263,12 @@ window.InboxKeys = window.InboxKeys || {};
   }
 
   function findControl(patterns, scope = document) {
+    const hit = findControlOnce(patterns, scope);
+    if (hit || scope !== document || !primeToolbarLabels()) return hit;
+    return findControlOnce(patterns, scope);
+  }
+
+  function findControlOnce(patterns, scope) {
     // Prefer Gmail's own control surfaces (toolbars) before scanning the whole
     // document: controlLabel falls back to textContent, so a document-wide scan
     // can match a link INSIDE an email body whose text happens to be exactly
@@ -1262,6 +1300,7 @@ window.InboxKeys = window.InboxKeys || {};
     findByTooltip,
     clickByTooltip,
     exactButton,
+    primeToolbarLabels,
     realClick,
     hover,
     isSynthesizingHover,

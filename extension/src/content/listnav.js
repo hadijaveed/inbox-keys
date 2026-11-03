@@ -244,7 +244,7 @@ window.InboxKeys = window.InboxKeys || {};
   }
 
   // A visible toolbar button (acts on the checked set) by exact label.
-  function toolbarButton(label) {
+  function toolbarButton(label, primed = false) {
     const bars = Array.from(
       document.querySelectorAll(gmail.SEL.toolbars)
     ).filter((b) => gmail.isVisible(b));
@@ -254,6 +254,9 @@ window.InboxKeys = window.InboxKeys || {};
       ).filter((b) => gmail.isVisible(b))[0];
       if (btn) return btn;
     }
+    // Gmail leaves toolbar icons unlabeled until first hovered; see
+    // gmail.primeToolbarLabels.
+    if (!primed && gmail.primeToolbarLabels && gmail.primeToolbarLabels()) return toolbarButton(label, true);
     return null;
   }
 

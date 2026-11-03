@@ -2780,4 +2780,43 @@ function replyWithGeminiFixture() {
   assert.equal(w.InboxKeys.gmail.composeBody(), inline, "the focused editor wins over a later one in DOM order");
 }
 
+// Gmail draws toolbar icons with NO aria-label / data-tooltip and only fills
+// them in on the first mouseover of a button, so a freshly opened conversation
+// has an unlabeled toolbar. Label-based lookups (Archive via `e`, the palette,
+// ...) must hover the toolbar to reveal the labels instead of toasting
+// "Gmail control not found: Archive". Models Gmail: the label appears
+// synchronously inside the mouseover handler.
+{
+  const toolbar =
+    '<div role="toolbar">' +
+    '<div role="button" id="tb-archive"></div>' +
+    '<div role="button" id="tb-delete"></div>' +
+    "</div>";
+  const w = load(toolbar + threadFixture(), "#inbox/" + ID);
+  const toasts = [];
+  w.InboxKeys.toast = (msg) => { toasts.push(String(msg)); };
+  const labels = { "tb-archive": "Archive", "tb-delete": "Delete" };
+  const clicked = [];
+  for (const [id, label] of Object.entries(labels)) {
+    const el = w.document.getElementById(id);
+    el.addEventListener("mouseover", () => {
+      el.setAttribute("aria-label", label);
+      el.setAttribute("data-tooltip", label);
+    });
+    el.addEventListener("click", () => clicked.push(label));
+  }
+  assert.equal(w.document.getElementById("tb-archive").hasAttribute("aria-label"), false, "toolbar starts unlabeled");
+  const e = press(w, "e", { target: w.document.body });
+  assert.equal(e.defaultPrevented, true, "e is claimed in thread view");
+  assert.deepEqual(clicked, ["Archive"], "archive clicks the toolbar button after revealing its label");
+  assert.equal(toasts.some((t) => /not found/.test(t)), false, "no spurious 'control not found' toast");
+
+  // A control that genuinely isn't there still toasts (priming must not mask it).
+  const w2 = load('<div role="toolbar"><div role="button"></div></div>' + threadFixture(), "#inbox/" + ID);
+  const toasts2 = [];
+  w2.InboxKeys.toast = (msg) => { toasts2.push(String(msg)); };
+  press(w2, "e", { target: w2.document.body });
+  assert.equal(toasts2.some((t) => /not found: Archive/.test(t)), true, "a truly missing Archive control still toasts");
+}
+
 console.log("hotkey integration tests passed");
